@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "delta-lint: コード変更の構造矛盾を自律検出し、Issue起票・PR作成まで自走するエージェント",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   "plugins": [
     {
       "name": "delta-lint",
       "source": "./plugins/delta-lint",
       "description": "リポジトリの構造矛盾を自律的に検出・修正・PR作成まで行うコード品質エージェント",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "category": "code-quality",
       "tags": ["linter", "agent", "code-review", "structural-contradiction"]
     }
