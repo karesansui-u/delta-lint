@@ -321,7 +321,7 @@ def compute_coverage_matrix(base_path: str | Path) -> dict:
                     _DEPTH_FLAGS.get(depth, ""),
                     _LENS_FLAGS.get(lens, ""),
                 ] if f]
-                command = "delta scan" + (" " + " ".join(flags) if flags else "")
+                command = "delta-scan" + (" " + " ".join(flags) if flags else "")
 
                 cell = {
                     "scope": scope,

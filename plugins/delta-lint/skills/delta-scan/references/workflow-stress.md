@@ -115,4 +115,4 @@ cd ~/.claude/skills/delta-lint/scripts && python -c "from findings import ingest
 
 - ユーザーが途中で別の質問をしたら、ポーリングを中断して対応してよい
 - ストレステストはバックグラウンドで継続中なので、対応後にポーリングを再開する
-- `TIMEOUT` の場合でも途中結果は保存済み。「残りは再度 `delta scan --lens stress` で継続可能」と伝える
+- `TIMEOUT` の場合でも途中結果は保存済み。「残りは再度 `delta-scan --lens stress` で継続可能」と伝える

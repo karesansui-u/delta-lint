@@ -520,7 +520,7 @@ sleep 60
 - **ポーリングコマンドは即座に終了する** ので、ユーザーの質問にいつでも応答できる
 - ユーザーが途中で別の質問をしたら対応してよい。ストレステストはバックグラウンドで継続中
 - 対応後にポーリングを再開するか、Step 4 に進む
-- `TIMEOUT` の場合: 途中結果でも地雷マップは生成済み。「{done}/{total} 件まで完了。残りは `delta scan --lens stress` で再開可能」と報告
+- `TIMEOUT` の場合: 途中結果でも地雷マップは生成済み。「{done}/{total} 件まで完了。残りは `delta-scan --lens stress` で再開可能」と報告
 
 ## Step 4: When stress-test completes
 

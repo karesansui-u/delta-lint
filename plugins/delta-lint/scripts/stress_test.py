@@ -644,7 +644,7 @@ def init_lightweight(
         lines = [
             "# delta-lint constraints — known invariants for this repository",
             "# Add rules that the code must follow but aren't obvious from reading it.",
-            "# These are used by `delta scan` to improve detection accuracy.",
+            "# These are used by `delta-scan` to improve detection accuracy.",
             "#",
             "# How to add: edit this file directly, or tell Claude Code:",
             '#   "この関数は消費税を切り捨てで計算してる。前提として登録して"',

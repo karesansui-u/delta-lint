@@ -1,5 +1,5 @@
 # light — high のみ・高速チェック
-# Usage: delta scan --profile light
+# Usage: delta-scan --profile light
 
 name: light
 description: "highのみ・高速チェック。CIゲートやPRレビュー向け"

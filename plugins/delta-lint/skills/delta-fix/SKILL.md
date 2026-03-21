@@ -82,7 +82,7 @@ cd ~/.claude/skills/delta-lint/scripts && python cli.py fix --repo <REPO_PATH> -
 |-------------|------|
 | `delta fix` | confirmed 上位3件を自動PR |
 | `delta fix --issue 42` | Issue #42 から修正PR |
-| `delta scan --autofix` | scan 内で confirmed 全件を自動PR |
+| `delta-scan --autofix` | scan 内で confirmed 全件を自動PR |
 | 「PR出して」「Issue出して」「Issue直して」 | confirmed 全件を自動PR |
 | 「採点して」「優先度つけて」 | dry-run（スコア表示のみ） |
 | `--ids F001,F002` | 指定 findings のみ処理 |

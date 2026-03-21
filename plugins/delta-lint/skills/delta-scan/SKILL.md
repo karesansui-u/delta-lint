@@ -47,7 +47,7 @@ Only treat it as an error if stderr contains a Python traceback or "Error:" pref
 | Workflow | Trigger | Reference |
 |----------|---------|-----------|
 | **Init** | "delta init", "地雷マップ作って", or auto on first scan | [workflow-init.md](references/workflow-init.md) |
-| **Scan** | "delta scan", default | [workflow-scan.md](references/workflow-scan.md) (scan→記録→**自動調査→ステータス更新**まで一気通貫) |
+| **Scan** | "delta-scan", default | [workflow-scan.md](references/workflow-scan.md) (scan→記録→**自動調査→ステータス更新**まで一気通貫) |
 | **PR Scan** | "PRレビュー", "PR scan", "review PR", "プルリクチェック" | [workflow-scan.md](references/workflow-scan.md) (PR mode) |
 | **Stress Test** | "ストレステスト", "stress test", "地雷マップ更新", "--lens stress", "フルスキャン" | [workflow-stress.md](references/workflow-stress.md) |
 | **Suppress Add** | "suppress {number}" | [workflow-suppress.md](references/workflow-suppress.md) |
@@ -59,7 +59,7 @@ Only treat it as an error if stderr contains a Python traceback or "Error:" pref
 
 1. User says "delta init", "地雷マップ作って" → **Init**（リッチ初期化体験）
 2. User mentions stress/lens stress/ストレステスト/フルスキャン/地雷マップ更新/`--lens stress` → **Stress Test**（バックグラウンド実行）
-3. User says "delta scan" or just `/delta-scan`（stress 以外） → **Scan**（初回なら auto-init 後に scan）
+3. User says "delta-scan" or just `/delta-scan`（stress 以外） → **Scan**（初回なら auto-init 後に scan）
 4. User mentions PR/プルリク/レビュー ("PRレビュー", "PR scan", "review PR", "プルリクスキャン", "PRチェック") → **PR Scan** (= Scan with `--scope pr`)
 5. User mentions a `dl-` prefixed ID (e.g. "dl-65edfb5a 調べて") → **Investigate Finding**
 6. User says "suppress" with a number → **Suppress Add**

@@ -36,11 +36,11 @@ API キーもない   → dry-run モードで動作
 ### Claude Code から（推奨）
 
 ```
-> delta scan                              # 変更ファイルのデグレチェック
-> delta scan --scope smart                # git 履歴ベースでファイル選択
-> delta scan --depth deep                 # 依存チェーンを辿る深層スキャン
-> delta scan --lens security              # セキュリティ特化
-> delta scan --scope all --lens stress    # 全ファイル × ストレステスト
+> delta-scan                              # 変更ファイルのデグレチェック
+> delta-scan --scope smart                # git 履歴ベースでファイル選択
+> delta-scan --depth deep                 # 依存チェーンを辿る深層スキャン
+> delta-scan --lens security              # セキュリティ特化
+> delta-scan --scope all --lens stress    # 全ファイル × ストレステスト
 > delta view                              # ダッシュボードをブラウザで表示
 > delta init                              # リポジトリの初期化（構造分析）
 ```
@@ -399,7 +399,7 @@ python cli.py scan --repo /path/to/repo --autofix
 ### fix (delta-fix)
 
 findings や GitHub Issue から自動修正を生成。1 finding = 1 branch = 1 PR。
-修正後にデグレチェック（`delta scan --scope pr`）を自動実行し、新たな矛盾が生まれたらブロックします。
+修正後にデグレチェック（`delta-scan --scope pr`）を自動実行し、新たな矛盾が生まれたらブロックします。
 
 ```bash
 # 優先度上位3件を自動修正→PR

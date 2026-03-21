@@ -500,8 +500,8 @@ def cmd_init(args):
                 print(f"  [warn] ダッシュボードを開けませんでした: {e}", file=sys.stderr)
 
     print("  次のステップ:", file=sys.stderr)
-    print("    delta scan                    — 変更ファイルをスキャン", file=sys.stderr)
-    print("    delta scan --scope wide       — 全ファイルスキャン（バッチ分割）", file=sys.stderr)
-    print("    delta scan --lens stress      — ストレステスト（地雷マップ生成）", file=sys.stderr)
-    print("    delta scan --lens security    — セキュリティ重点スキャン", file=sys.stderr)
-    print("    delta init          — 再実行でカバレッジ拡大", file=sys.stderr)
+    print("    delta-scan                    — 変更ファイルをスキャン", file=sys.stderr)
+    print("    delta-scan --scope wide       — 全ファイルスキャン（バッチ分割）", file=sys.stderr)
+    print("    delta-scan --lens stress      — ストレステスト（地雷マップ生成）", file=sys.stderr)
+    print("    delta-scan --lens security    — セキュリティ重点スキャン", file=sys.stderr)
+    print("    delta-init          — 再実行でカバレッジ拡大", file=sys.stderr)

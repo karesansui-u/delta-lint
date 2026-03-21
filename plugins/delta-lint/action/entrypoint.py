@@ -188,7 +188,7 @@ def generate_fixes(findings: list[dict], context, model: str) -> list[dict]:
     """Call Claude to generate fixes for each finding."""
     import anthropic
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
     client = anthropic.Anthropic(api_key=api_key)
 
     all_fixes = []

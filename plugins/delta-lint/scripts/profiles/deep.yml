@@ -1,5 +1,5 @@
 # deep — 全パターン・全重大度で徹底スキャン
-# Usage: delta scan --profile deep
+# Usage: delta-scan --profile deep
 
 name: deep
 description: "全パターン・全重大度で徹底スキャン。見逃しゼロを目指す"
