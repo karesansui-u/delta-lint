@@ -243,11 +243,15 @@ def apply_fixes_locally(fixes: list[dict], repo_path: str,
                 print(f"    Applied: {file_path}:{fix.get('line', '?')}", file=sys.stderr)
             continue
 
-        # Retry with stripped trailing whitespace
+        # Retry with stripped trailing whitespace (match only; preserve original content)
         old_stripped = "\n".join(line.rstrip() for line in old_code.splitlines())
         content_stripped = "\n".join(line.rstrip() for line in content.splitlines())
         if old_stripped in content_stripped:
-            content = content_stripped.replace(old_stripped, new_code, 1)
+            idx = content_stripped.index(old_stripped)
+            line_start = content_stripped[:idx].count("\n")
+            line_end = line_start + old_stripped.count("\n")
+            lines = content.splitlines(True)
+            content = "".join(lines[:line_start]) + new_code + "".join(lines[line_end + 1:])
             full_path.write_text(content, encoding="utf-8")
             applied.append(fix)
             if verbose:

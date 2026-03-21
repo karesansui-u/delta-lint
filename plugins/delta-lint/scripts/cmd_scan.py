@@ -109,7 +109,7 @@ def cmd_scan_deep(args):
                 repo=repo_name,
                 file=loc.get("file_a", ""),
                 type="contradiction",
-                severity=f.get("severity", "medium"),
+                severity=f.get("severity", "low"),
                 pattern=f.get("pattern", ""),
                 title=f.get("contradiction", "")[:120],
                 description=f.get("contradiction", ""),
@@ -1239,7 +1239,7 @@ def cmd_scan(args):
         threshold = SEVERITY_ORDER.get(args.severity, 0)
         before_cat = len(result.shown)
         result.shown = [f for f in result.shown
-                        if SEVERITY_ORDER.get(f.get("severity", "medium").lower(), 1) <= threshold]
+                        if SEVERITY_ORDER.get(f.get("severity", "low").lower(), 1) <= threshold]
         cat_filtered = before_cat - len(result.shown)
         if cat_filtered and args.verbose:
             print(f"  Category filtered: {cat_filtered}", file=sys.stderr)
@@ -1329,7 +1329,7 @@ def cmd_scan(args):
                     repo=repo_name,
                     file=loc.get("file_a", ""),
                     type="contradiction",
-                    severity=f.get("severity", "medium"),
+                    severity=f.get("severity", "low"),
                     pattern=f.get("pattern", ""),
                     title=full_title,
                     description=desc,
@@ -1688,7 +1688,7 @@ def cmd_scan(args):
         # Count medium findings that were filtered
         medium_filtered = sum(
             1 for f in result.filtered
-            if f.get("severity", "medium").lower() == "medium"
+            if f.get("severity", "low").lower() == "medium"
         )
         diag["medium_filtered"] = medium_filtered
 
@@ -1758,7 +1758,7 @@ def _recover_existing_findings(repo_path: str, existing_json: Path) -> int:
                     id=fid,
                     repo=repo_name,
                     file=file_a,
-                    severity=f.get("severity", "medium"),
+                    severity=f.get("severity", "low"),
                     pattern=pattern,
                     title=title,
                     description=f.get("impact", f.get("user_impact", "")),

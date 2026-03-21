@@ -75,7 +75,7 @@ def filter_findings(findings: list[dict], min_severity: str = "high",
                 continue
 
         # Step 2: severity filter
-        sev = f.get("severity", "medium").lower()
+        sev = f.get("severity", "low").lower()
         if SEVERITY_ORDER.get(sev, 1) <= threshold:
             result.shown.append(f)
         else:
@@ -85,7 +85,7 @@ def filter_findings(findings: list[dict], min_severity: str = "high",
     result.shown.extend(result.expired)
 
     # Sort shown by severity (high first)
-    result.shown.sort(key=lambda f: SEVERITY_ORDER.get(f.get("severity", "medium").lower(), 1))
+    result.shown.sort(key=lambda f: SEVERITY_ORDER.get(f.get("severity", "low").lower(), 1))
     return result
 
 

@@ -157,14 +157,17 @@ class ScoringConfig:
         }
 
 
-def _merge_weights(defaults: dict[str, float], overrides: dict) -> dict[str, float]:
+def _merge_weights(defaults: dict, overrides: dict) -> dict:
     """Merge team overrides into defaults. Unknown keys are added (forward-compat)."""
     merged = dict(defaults)
     for k, v in overrides.items():
-        try:
-            merged[k] = float(v)
-        except (TypeError, ValueError):
-            pass  # skip invalid values silently
+        if isinstance(v, dict):
+            merged[k] = _merge_weights(merged.get(k, {}), v)
+        else:
+            try:
+                merged[k] = float(v)
+            except (TypeError, ValueError):
+                pass
     return merged
 
 

@@ -34,6 +34,8 @@ from retrieval import ModuleContext
 
 PROMPT_DIR = Path(__file__).parent / "prompts"
 
+_LLM_TIMEOUT: float = 600.0
+
 
 LANG_INSTRUCTIONS = {
     "en": "",  # default: no extra instruction, LLM writes English naturally
@@ -429,7 +431,7 @@ def _detect_cli(system_prompt: str, user_prompt: str) -> str:
     result = subprocess.run(
         ["claude", "-p"],
         input=prompt,
-        capture_output=True, text=True, timeout=600,
+        capture_output=True, text=True, timeout=_LLM_TIMEOUT,
     )
     # Hook failures (e.g. SessionEnd) cause non-zero exit even when output is valid
     if result.stdout.strip():
@@ -442,7 +444,7 @@ def _detect_cli(system_prompt: str, user_prompt: str) -> str:
 def _detect_anthropic_sdk(system_prompt: str, user_prompt: str, model: str) -> str:
     """Call Claude via the official Anthropic SDK."""
     api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
-    client = anthropic.Anthropic(api_key=api_key, timeout=600.0) if api_key else anthropic.Anthropic(timeout=600.0)
+    client = anthropic.Anthropic(api_key=api_key, timeout=_LLM_TIMEOUT) if api_key else anthropic.Anthropic(timeout=_LLM_TIMEOUT)
     message = client.messages.create(
         model=model,
         max_tokens=4096,
@@ -473,7 +475,7 @@ def _detect_requests(system_prompt: str, user_prompt: str, model: str) -> str:
             "system": system_prompt,
             "messages": [{"role": "user", "content": user_prompt}],
         },
-        timeout=180,
+        timeout=_LLM_TIMEOUT,
     )
 
     if resp.status_code != 200:

@@ -97,7 +97,7 @@ def _fallback_pm(findings: list[dict]) -> str:
     """Template-based PM translation when CLI is unavailable."""
     lines = ["# δ-lint スキャン結果（PM向け）\n"]
     for i, f in enumerate(findings, 1):
-        severity = f.get("severity", "medium")
+        severity = f.get("severity", "low")
         icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(severity, "🟡")
         lines.append(f"## {icon} 問題 #{i}")
         lines.append("")

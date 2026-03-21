@@ -199,7 +199,7 @@ def compute_scan_depth(base_path: str | Path) -> dict:
 
     matrix = compute_coverage_matrix(base_path)
     cells_done = matrix.get("cells_done", 0)
-    cells_total = matrix.get("cells_total", 10)
+    cells_total = matrix.get("cells_total", 9)
     total_runs = sum(c.get("count", 0) for c in matrix.get("cells", []))
 
     if cells_done == 0:
@@ -256,16 +256,16 @@ def compute_coverage_matrix(base_path: str | Path) -> dict:
     """Compute a 3-axis coverage matrix from scan history.
 
     cells: all 24 scope × depth × lens combinations (for backward compat).
-    cells_done / cells_total: based on 10 logical cells:
-      - 8 scope × depth (default lens) in the matrix
+    cells_done / cells_total: based on 9 logical cells:
+      - 7 scope × depth (default lens, excluding pr × default)
       - 1 stress (scope-independent)
       - 1 security (scope-independent)
 
     Returns:
         {
             "cells": [...],       # 24 entries (raw data)
-            "cells_done": 3,      # Logical cells executed (max 10)
-            "cells_total": 10,    # 8 matrix + stress + security
+            "cells_done": 3,      # Logical cells executed (max 9)
+            "cells_total": 9,     # 7 matrix + stress + security
         }
     """
     history = load_scan_history(Path(base_path))
@@ -631,7 +631,7 @@ def add_finding(
     # Cross pattern: 60% threshold on entity overlap only (different angles of same bug)
     new_entities = _extract_code_entities(finding.title)
     for fid, entry in latest.items():
-        if entry.get("status") in ("suppressed", "fixed", "wontfix"):
+        if entry.get("status") in ("merged", "wontfix", "duplicate", "false_positive"):
             continue
         same_pattern = _normalize_pattern(entry.get("pattern", "")) == finding.pattern
         existing_title = entry.get("title", "")

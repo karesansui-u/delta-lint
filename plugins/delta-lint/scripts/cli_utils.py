@@ -532,7 +532,7 @@ def _apply_category_severity_boost(findings: list[dict], categories: dict,
         if boost == 0:
             continue
 
-        current_sev = f.get("severity", "medium").lower()
+        current_sev = f.get("severity", "low").lower()
         current_idx = SEVERITY_LEVELS.index(current_sev) if current_sev in SEVERITY_LEVELS else 1
         new_idx = max(0, min(len(SEVERITY_LEVELS) - 1, current_idx + boost))
 

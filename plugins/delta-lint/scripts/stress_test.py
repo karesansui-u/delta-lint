@@ -1616,7 +1616,7 @@ def run_stress_test(
                         pass
                     finding = Finding(
                         id=fid, repo=repo_name, file=file_a,
-                        severity=f.get("severity", "medium"),
+                        severity=f.get("severity", "low"),
                         pattern=pattern, title=title,
                         description=f.get("impact", f.get("user_impact", "")),
                         category=f.get("category", "contradiction"),

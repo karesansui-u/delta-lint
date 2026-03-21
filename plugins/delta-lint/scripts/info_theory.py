@@ -18,15 +18,17 @@ from __future__ import annotations
 import math
 from typing import Any
 
-# Closed statuses — same semantics as dashboard / debt_total
-_RESOLVED_STATUSES = frozenset({
-    "merged", "wontfix", "duplicate", "rejected", "false_positive",
-})
+from findings import STATUS_META
+
+_RESOLVED_STATUSES = frozenset(k for k, v in STATUS_META.items() if v.get("closed"))
 
 
 def _file_key(f: dict) -> str:
     loc = f.get("location") or {}
-    s = (f.get("file") or loc.get("file_a") or "").strip()
+    if isinstance(loc, dict):
+        s = (loc.get("file_a") or f.get("file") or "").strip()
+    else:
+        s = (f.get("file") or "").strip()
     return s or "__empty__"
 
 
