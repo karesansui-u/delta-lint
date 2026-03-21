@@ -18,12 +18,13 @@ def _cache_dir(repo_path: str) -> Path:
     return Path(repo_path) / ".delta-lint" / "cache"
 
 
-def compute_context_hash(target_files: list, dep_files: list) -> str:
+def compute_context_hash(target_files: list, dep_files: list, doc_files: list | None = None) -> str:
     """Compute a hash of the scan context (file paths + content).
 
     Args:
         target_files: list of FileContext (or dicts with path, content)
         dep_files: list of FileContext (or dicts with path, content)
+        doc_files: list of FileContext (or dicts with path, content) for document contracts
 
     Returns:
         SHA256 hex digest (first 16 chars)
@@ -33,6 +34,8 @@ def compute_context_hash(target_files: list, dep_files: list) -> str:
         parts.append(f"{_get_path(f)}:{hashlib.md5(_get_content(f).encode()).hexdigest()}")
     for f in sorted(dep_files, key=lambda x: _get_path(x)):
         parts.append(f"dep:{_get_path(f)}:{hashlib.md5(_get_content(f).encode()).hexdigest()}")
+    for f in sorted(doc_files or [], key=lambda x: _get_path(x)):
+        parts.append(f"doc:{_get_path(f)}:{hashlib.md5(_get_content(f).encode()).hexdigest()}")
     combined = "|".join(parts)
     return hashlib.sha256(combined.encode()).hexdigest()[:16]
 

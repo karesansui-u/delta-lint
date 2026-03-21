@@ -132,7 +132,7 @@ def run_scan(files: list[str], severity: str, model: str) -> dict:
         return {"findings": [], "filtered": 0, "suppressed": 0, "expired": 0,
                 "context": context}
 
-    findings = detect(context, repo_name=get_repo(), model=model, backend="api")
+    findings = detect(context, repo_name=get_repo(), model=model)
     suppressions = load_suppressions(repo_path)
     result = filter_findings(findings, min_severity=severity,
                              suppressions=suppressions, repo_path=repo_path)
@@ -148,105 +148,10 @@ def run_scan(files: list[str], severity: str, model: str) -> dict:
 
 # ---------------------------------------------------------------------------
 # Fix generation (for suggest + autofix modes)
+# — delegates to fixgen.py (single source of truth)
 # ---------------------------------------------------------------------------
 
-FIX_PROMPT = """\
-You are a code fix generator. Given a structural contradiction between two files,
-generate the minimal fix to resolve it.
-
-## Rules
-- Fix ONLY the contradiction described. Do not refactor or improve other code.
-- Prefer fixing the file that deviates from the established pattern/config.
-- Output valid JSON only.
-
-## Contradiction
-{contradiction_json}
-
-## Source files
-{source_code}
-
-## Output Format
-Return a JSON array of fixes. Each fix:
-```json
-[
-  {{
-    "file": "path/to/file.py",
-    "line": 8,
-    "old_code": "exact line(s) to replace",
-    "new_code": "replacement line(s)",
-    "explanation": "brief explanation of the fix"
-  }}
-]
-```
-
-If the fix requires changes in multiple places, include multiple entries.
-If you cannot generate a safe fix, return `[]`.
-"""
-
-
-def generate_fixes(findings: list[dict], context, model: str) -> list[dict]:
-    """Call Claude to generate fixes for each finding."""
-    import anthropic
-
-    api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
-    client = anthropic.Anthropic(api_key=api_key, timeout=600.0) if api_key else anthropic.Anthropic(timeout=600.0)
-
-    all_fixes = []
-    source_code = context.to_prompt_string() if hasattr(context, 'to_prompt_string') else ""
-
-    for finding in findings:
-        if finding.get("parse_error"):
-            continue
-
-        prompt = FIX_PROMPT.format(
-            contradiction_json=json.dumps(finding, indent=2, ensure_ascii=False),
-            source_code=source_code,
-        )
-
-        try:
-            message = client.messages.create(
-                model=model,
-                max_tokens=2048,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            raw = message.content[0].text
-            fixes = _parse_fixes(raw)
-            for fix in fixes:
-                fix["_finding"] = finding
-            all_fixes.extend(fixes)
-        except Exception as e:
-            print(f"  Fix generation failed for finding: {e}", file=sys.stderr)
-
-    return all_fixes
-
-
-def _parse_fixes(raw: str) -> list[dict]:
-    """Parse fix JSON from LLM response."""
-    text = raw.strip()
-    if "```" in text:
-        import re
-        match = re.search(r"```(?:json)?\s*\n(.*?)\n```", text, re.DOTALL)
-        if match:
-            text = match.group(1).strip()
-    try:
-        parsed = json.loads(text)
-        if isinstance(parsed, list):
-            return parsed
-        if isinstance(parsed, dict):
-            return [parsed]
-    except json.JSONDecodeError:
-        pass
-
-    bracket_start = text.find("[")
-    bracket_end = text.rfind("]")
-    if bracket_start >= 0 and bracket_end > bracket_start:
-        try:
-            parsed = json.loads(text[bracket_start:bracket_end + 1])
-            if isinstance(parsed, list):
-                return parsed
-        except json.JSONDecodeError:
-            pass
-    return []
+from fixgen import generate_fixes  # noqa: E402 — imported after sys.path setup
 
 
 # ---------------------------------------------------------------------------
@@ -518,15 +423,19 @@ def apply_and_push_fixes(fixes: list[dict], scan_result: dict,
 
         content = full_path.read_text(encoding="utf-8")
         if old_code not in content:
-            # Try with trailing whitespace stripped
+            # Try with trailing whitespace stripped (match only; preserve original content)
             old_lines = "\n".join(l.rstrip() for l in old_code.split("\n"))
             content_stripped = "\n".join(l.rstrip() for l in content.split("\n"))
             if old_lines not in content_stripped:
                 print(f"  Skip: old_code not found in {file_path}", file=sys.stderr)
                 continue
-            # Apply on stripped content
-            new_content = content_stripped.replace(old_lines, new_code, 1)
-            full_path.write_text(new_content + "\n", encoding="utf-8")
+            # Compute line range in stripped content, then splice into original
+            idx = content_stripped.index(old_lines)
+            line_start = content_stripped[:idx].count("\n")
+            line_end = line_start + old_lines.count("\n")
+            lines = content.splitlines(True)
+            new_content = "".join(lines[:line_start]) + new_code + "".join(lines[line_end + 1:])
+            full_path.write_text(new_content, encoding="utf-8")
         else:
             new_content = content.replace(old_code, new_code, 1)
             full_path.write_text(new_content, encoding="utf-8")

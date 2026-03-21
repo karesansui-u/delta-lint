@@ -178,9 +178,17 @@ def _to_finding_dict(candidate: ContractMismatch, verdict: dict) -> dict:
         consumer_file = candidate.consumer.file_path
         consumer_detail = f"line ~{candidate.consumer.line}"
 
-    # Determine certainty from verdict
+    # Determine certainty using the same double-check rule as verifier.py
     v = verdict.get("verdict", "uncertain")
-    certainty = {"contradiction": "definite", "uncertain": "uncertain"}.get(v, "probable")
+    severity = verdict.get("severity", candidate.severity_hint)
+    if v == "contradiction" and severity == "high":
+        certainty = "probable"  # deep scan lacks confidence score; cap at probable
+    elif v == "contradiction":
+        certainty = "probable"
+    elif v == "uncertain":
+        certainty = "uncertain"
+    else:
+        certainty = "probable"
 
     return {
         "pattern": pattern,

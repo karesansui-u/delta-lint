@@ -1137,7 +1137,7 @@ def cmd_scan(args):
 
     # Step 3.9: Check cache (skip LLM if same context was scanned before)
     from cache import compute_context_hash, get_cached_findings, save_cached_findings
-    context_hash = compute_context_hash(context.target_files, context.dep_files)
+    context_hash = compute_context_hash(context.target_files, context.dep_files, context.doc_files)
     cache_hit = False
 
     if not getattr(args, 'no_cache', False):

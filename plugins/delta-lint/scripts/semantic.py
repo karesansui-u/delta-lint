@@ -300,7 +300,8 @@ def expand_context_semantic(
             break
 
         context.dep_files.append(
-            FileContext(path=fpath, content=content, is_target=False)
+            FileContext(path=fpath, content=content, is_target=False,
+                       confidence=0.40, dep_tier='semantic-search')
         )
         added += 1
 

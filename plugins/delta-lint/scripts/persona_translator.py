@@ -83,11 +83,15 @@ def _call_claude_cli(system_prompt: str, user_prompt: str,
     full_prompt = f"{system_prompt}\n\n---\n\n{user_prompt}"
     try:
         result = subprocess.run(
-            ["claude", "-p", full_prompt, "--model", model],
+            ["claude", "-p", "--model", model],
+            input=full_prompt,
             capture_output=True, text=True, timeout=120,
         )
-        if result.returncode == 0 and result.stdout.strip():
+        # Hook failures (e.g. SessionEnd) cause non-zero exit even when output is valid
+        if result.stdout.strip():
             return result.stdout.strip()
+        if result.returncode != 0:
+            return None
     except (subprocess.TimeoutExpired, OSError):
         pass
     return None
