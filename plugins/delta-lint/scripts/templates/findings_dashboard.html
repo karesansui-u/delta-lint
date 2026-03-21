@@ -369,7 +369,7 @@ tailwind.config = {
           <code class="block bg-surface-1 rounded px-3 py-2 text-xs font-mono mb-3">context_score = churn_weight × fan_out_weight × user_facing × age_multiplier / fix_cost × 100</code>
           <table class="w-full text-xs mt-2">
             <tr class="border-b border-surface-3"><td class="py-1.5 font-semibold w-28">churn_weight</td><td>6ヶ月の変更回数 → 0.5〜10.0（hot=月3回で最大）</td></tr>
-            <tr class="border-b border-surface-3"><td class="py-1.5 font-semibold">fan_out_weight</td><td>参照ファイル数 → 1.0〜10.0（5参照で最大）</td></tr>
+            <tr class="border-b border-surface-3"><td class="py-1.5 font-semibold">fan_out_weight</td><td>参照ファイル数 → 1.0〜10.0（100参照で最大）</td></tr>
             <tr class="border-b border-surface-3"><td class="py-1.5 font-semibold">user_facing</td><td>UI/API影響=1.5× / 内部=1.0×</td></tr>
             <tr class="border-b border-surface-3"><td class="py-1.5 font-semibold">age_multiplier</td><td>1 + log₂(1 + days/30) × churn_ratio（放置×活発=加速、churn=0なら1.0）</td></tr>
             <tr><td class="py-1.5 font-semibold">fix_cost</td><td>パターン別修正工数: ④=1.0 ⑦=0.5 ⑩=5.0 等</td></tr>
