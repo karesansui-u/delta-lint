@@ -424,8 +424,8 @@ def apply_and_push_fixes(fixes: list[dict], scan_result: dict,
         content = full_path.read_text(encoding="utf-8")
         if old_code not in content:
             # Try with trailing whitespace stripped (match only; preserve original content)
-            old_lines = "\n".join(l.rstrip() for l in old_code.split("\n"))
-            content_stripped = "\n".join(l.rstrip() for l in content.split("\n"))
+            old_lines = "\n".join(l.rstrip() for l in old_code.splitlines())
+            content_stripped = "\n".join(l.rstrip() for l in content.splitlines())
             if old_lines not in content_stripped:
                 print(f"  Skip: old_code not found in {file_path}", file=sys.stderr)
                 continue
