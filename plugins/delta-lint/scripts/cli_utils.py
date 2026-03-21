@@ -8,6 +8,23 @@ from pathlib import Path
 
 
 # ---------------------------------------------------------------------------
+# Claude CLI availability check (single source of truth)
+# ---------------------------------------------------------------------------
+
+def cli_available() -> bool:
+    """Check if claude CLI is available on PATH."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["claude", "--version"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+# ---------------------------------------------------------------------------
 # Adaptive time window
 # ---------------------------------------------------------------------------
 

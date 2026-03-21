@@ -113,12 +113,14 @@ def extract_assumptions(diff_content: str, verbose: bool = False) -> list[dict]:
         capture_output=True, text=True, timeout=120,
     )
 
+    # Hook failures (e.g. SessionEnd) cause non-zero exit even when output is valid
+    if result.stdout.strip():
+        return _parse_assumptions(result.stdout)
     if result.returncode != 0:
         if verbose:
             import sys
             print(f"  [semantic] claude -p failed: {result.stderr[:200]}", file=sys.stderr)
         return []
-
     return _parse_assumptions(result.stdout)
 
 

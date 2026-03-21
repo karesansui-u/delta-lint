@@ -128,7 +128,10 @@ def build_treemap_json(
     n_modifications = metadata.get("n_modifications", len(results))
     repo_name = metadata.get("repo_name", "repository")
 
-    file_risks = aggregate_results(results, n_modifications, confirmed_bugs)
+    # Derive repo_path from results_path: {repo}/.delta-lint/stress-test/results.json
+    repo_path = str(Path(results_path).resolve().parent.parent.parent)
+    file_risks = aggregate_results(results, n_modifications, confirmed_bugs,
+                                   repo_path=repo_path)
     risky_files = {k: v for k, v in file_risks.items() if v.risk_score > 0}
     treemap_data = build_treemap_data(risky_files, repo_name)
     _add_category_labels(treemap_data)

@@ -65,15 +65,8 @@ If you cannot generate a safe fix, return `[]`.
 # ---------------------------------------------------------------------------
 
 def _cli_available() -> bool:
-    """Check if claude CLI is available on PATH."""
-    try:
-        result = subprocess.run(
-            ["claude", "--version"],
-            capture_output=True, text=True, timeout=5,
-        )
-        return result.returncode == 0
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return False
+    from cli_utils import cli_available
+    return cli_available()
 
 
 # ---------------------------------------------------------------------------

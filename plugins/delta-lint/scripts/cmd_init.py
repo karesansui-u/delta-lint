@@ -1,9 +1,63 @@
 """cmd_init – extracted from cli.py for modularity."""
 
+import re
 import sys
 from pathlib import Path
 
 from cli_utils import _open_dashboard
+
+
+# ── CLAUDE.md auto-injection ──────────────────────────────────────
+
+_CLAUDE_MD_MARKER_START = "<!-- delta-lint:auto-start -->"
+_CLAUDE_MD_MARKER_END = "<!-- delta-lint:auto-end -->"
+
+_CLAUDE_MD_BLOCK = f"""{_CLAUDE_MD_MARKER_START}
+## delta-lint guard
+
+- **scan 完了後、`found` が 0 になるまで全件調査・ステータス更新を自律完走すること。** ユーザーの指示を待たない。
+- コード変更前に `/delta-review` を実行して影響範囲を確認すること
+- コード変更後は `/delta-scan` の実行を提案すること
+- **delta fix**: finding の修正は必ず以下の CLI コマンドで実行すること。自分で Grep/Read/Edit してコードを手動修正してはいけない。
+  ```bash
+  cd ~/.claude/skills/delta-lint/scripts && python cli.py fix --repo <REPO_PATH> --ids <FINDING_IDS> -v
+  ```
+  このコマンドがブランチ作成→fix生成→適用→デグレチェック→commit→push→PR→ステータス更新を全自動で行う。
+{_CLAUDE_MD_MARKER_END}"""
+
+
+def inject_claude_md(repo_path: str, *, verbose: bool = False) -> bool:
+    """Inject or update delta-lint guard rules in the repo's CLAUDE.md.
+
+    Uses HTML comment markers to manage its own block without touching
+    user-written content. Returns True if the file was modified.
+    """
+    claude_md = Path(repo_path) / "CLAUDE.md"
+    marker_re = re.compile(
+        re.escape(_CLAUDE_MD_MARKER_START) + r".*?" + re.escape(_CLAUDE_MD_MARKER_END),
+        re.DOTALL,
+    )
+
+    if claude_md.exists():
+        content = claude_md.read_text(encoding="utf-8")
+        if _CLAUDE_MD_MARKER_START in content:
+            new_content = marker_re.sub(_CLAUDE_MD_BLOCK, content)
+            if new_content == content:
+                return False  # already up-to-date
+            claude_md.write_text(new_content, encoding="utf-8")
+            if verbose:
+                print("  📝 CLAUDE.md の delta-lint ブロックを更新しました", file=sys.stderr)
+            return True
+        else:
+            claude_md.write_text(content.rstrip() + "\n\n" + _CLAUDE_MD_BLOCK + "\n", encoding="utf-8")
+            if verbose:
+                print("  📝 CLAUDE.md に delta-lint guard を追加しました", file=sys.stderr)
+            return True
+    else:
+        claude_md.write_text(_CLAUDE_MD_BLOCK + "\n", encoding="utf-8")
+        if verbose:
+            print("  📝 CLAUDE.md を作成しました（delta-lint guard）", file=sys.stderr)
+        return True
 
 
 def cmd_init(args):
@@ -475,6 +529,14 @@ def cmd_init(args):
                     generate_dashboard(repo_path, treemap_json=_treemap, dashboard_template=_dash_tpl)
             except Exception:
                 pass
+
+    # Inject/update CLAUDE.md guard rules
+    try:
+        if inject_claude_md(repo_path, verbose=args.verbose):
+            print("  📝 CLAUDE.md に delta-lint guard を注入しました", file=sys.stderr)
+    except Exception as e:
+        if args.verbose:
+            print(f"  [warn] CLAUDE.md injection failed: {e}", file=sys.stderr)
 
     print("\n── δ-lint ── 初期化完了 ✅", file=sys.stderr)
 

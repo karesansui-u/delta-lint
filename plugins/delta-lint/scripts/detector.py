@@ -414,15 +414,8 @@ def detect(context: ModuleContext, repo_name: str = "",
 
 
 def _cli_available() -> bool:
-    """Check if claude CLI is available on PATH."""
-    try:
-        result = subprocess.run(
-            ["claude", "--version"],
-            capture_output=True, text=True, timeout=5,
-        )
-        return result.returncode == 0
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return False
+    from cli_utils import cli_available
+    return cli_available()
 
 
 def _detect_cli(system_prompt: str, user_prompt: str) -> str:

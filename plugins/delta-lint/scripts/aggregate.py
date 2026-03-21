@@ -9,7 +9,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from scoring import DEFAULT_SEVERITY_WEIGHT as SEVERITY_WEIGHT
+from scoring import DEFAULT_SEVERITY_WEIGHT, load_scoring_config
 
 
 @dataclass
@@ -24,11 +24,13 @@ class FileRisk:
     lines: int = 0  # approximate file size for treemap tile sizing
 
 
-def compute_risk_score(hit_count: int, n_modifications: int, max_severity: str) -> float:
+def compute_risk_score(hit_count: int, n_modifications: int, max_severity: str,
+                       severity_weight: dict | None = None) -> float:
     """risk_score = (hit_count / n_modifications) * severity_weight"""
     if n_modifications == 0:
         return 0.0
-    weight = SEVERITY_WEIGHT.get(max_severity, 0.3)
+    sw = severity_weight or DEFAULT_SEVERITY_WEIGHT
+    weight = sw.get(max_severity, 0.3)
     return min((hit_count / n_modifications) * weight, 1.0)
 
 
@@ -41,6 +43,7 @@ def aggregate_results(
     results: list[dict],
     n_modifications: int,
     confirmed_bugs: dict[str, list[dict]] | None = None,
+    repo_path: str | None = None,
 ) -> dict[str, FileRisk]:
     """Aggregate stress-test results into per-file risk scores.
 
@@ -54,6 +57,8 @@ def aggregate_results(
         Dict of file_path -> FileRisk
     """
     confirmed_bugs = confirmed_bugs or {}
+    cfg = load_scoring_config(repo_path) if repo_path else None
+    severity_weight = cfg.severity_weight if cfg else None
     risks: dict[str, FileRisk] = {}
 
     for result in results:
@@ -113,7 +118,8 @@ def aggregate_results(
 
     # Compute risk scores and attach confirmed bugs
     for fpath, r in risks.items():
-        r.risk_score = compute_risk_score(r.hit_count, n_modifications, r.max_severity)
+        r.risk_score = compute_risk_score(r.hit_count, n_modifications, r.max_severity,
+                                         severity_weight=severity_weight)
         if fpath in confirmed_bugs:
             r.confirmed_bugs = confirmed_bugs[fpath]
 
