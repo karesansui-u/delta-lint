@@ -138,8 +138,9 @@ def format_markdown(findings: list[dict], filtered_count: int = 0,
 
         if f.get("contradiction"):
             lines.append(f"**Contradiction**: {f['contradiction']}")
-        if f.get("impact"):
-            lines.append(f"**Impact**: {f['impact']}")
+        impact = f.get("impact") or f.get("user_impact")
+        if impact:
+            lines.append(f"**Impact**: {impact}")
         lines.append("")
 
     # Footer summary

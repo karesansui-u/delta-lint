@@ -81,6 +81,9 @@ def _verify_cli(system_prompt: str, user_prompt: str) -> str:
         input=prompt,
         capture_output=True, text=True, timeout=600,
     )
+    # Hook failures (e.g. SessionEnd) cause non-zero exit even when output is valid
+    if result.stdout.strip():
+        return result.stdout
     if result.returncode != 0:
         raise RuntimeError(f"claude -p failed: {result.stderr[:300]}")
     return result.stdout

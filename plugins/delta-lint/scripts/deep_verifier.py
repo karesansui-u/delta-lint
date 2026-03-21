@@ -110,6 +110,9 @@ def _call_claude_cli(system: str, user: str) -> Optional[str]:
             input=prompt,
             capture_output=True, text=True, timeout=VERIFY_TIMEOUT,
         )
+        # Hook failures (e.g. SessionEnd) cause non-zero exit even when output is valid
+        if result.stdout.strip():
+            return result.stdout.strip()
         if result.returncode != 0:
             return None
         return result.stdout.strip()
