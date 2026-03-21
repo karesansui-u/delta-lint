@@ -728,116 +728,29 @@
 			</div>
 		</div>
 
-		<!-- ===== 4. Under the hood + Not brute force ===== -->
+		<!-- ===== 8. Playwright ===== -->
 		<div class="slide" data-slide="3">
 			<div class="slide-inner">
-				<div class="section-badge"><span class="badge-label">自律性</span></div>
-				<h2>裏では何が起きているか</h2>
-				<!-- ✕○ 左右比較 -->
-				<div style="display: flex; gap: 32px; margin-top: 36px; margin-bottom: 56px;">
-					<div style="flex: 1; display: flex; align-items: center; gap: 16px;">
-						<span style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: #fff0f0; color: var(--red); font-size: 28px; font-weight: 700; flex-shrink: 0;">✕</span>
-						<p style="font-size: 17px; color: var(--text-light); margin: 0;">依存関係を全部コンテキストに入れる力技</p>
-					</div>
-					<div style="flex: 1; display: flex; align-items: center; gap: 16px;">
-						<span style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: var(--cyan-bg); color: var(--cyan); font-size: 28px; font-weight: 700; flex-shrink: 0;">○</span>
-						<p style="font-size: 17px; font-weight: 600; color: var(--navy); margin: 0;"><span class="hl">暗黙の前提</span> や <span class="hl">過去の関係</span> が<br>どう矛盾するかを賢く取りにいく</p>
-					</div>
-				</div>
-				<!-- ステップ一覧 -->
-				<p style="font-size: 13px; font-weight: 700; color: var(--cyan); margin: 0 0 8px; letter-spacing: 0.5px;">delta-scan</p>
-				<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px;">
-					<div style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
-						<strong style="color: var(--navy); font-size: 13px;">Git履歴ベース選定</strong>
-						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">変更頻度・バグ修正頻度で優先スキャン</p>
-					</div>
-					<div style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
-						<strong style="color: var(--navy); font-size: 13px;">Co-change 検出</strong>
-						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">一緒に変更された履歴から暗黙の依存を発見</p>
-					</div>
-					<div style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
-						<strong style="color: var(--navy); font-size: 13px;">地雷マップ生成</strong>
-						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">仮想改修で壊れる場所をシミュレーション</p>
-					</div>
-					<div style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
-						<strong style="color: var(--navy); font-size: 13px;">構造矛盾 × 6パターン</strong>
-						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">意味的な矛盾をパターン分類で自動検証</p>
-					</div>
-					<div style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
-						<strong style="color: var(--navy); font-size: 13px;">Sibling Map 学習</strong>
-						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">関連ペアを蓄積、使うほど精度が育つ</p>
-					</div>
-					<div style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
-						<strong style="color: var(--navy); font-size: 13px;">適応的スキャン範囲</strong>
-						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">コミット頻度で期間を自動調整</p>
-					</div>
-					<div style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
-						<strong style="color: var(--navy); font-size: 13px;">情報理論スコアリング</strong>
-						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">新規性 × 集中度で深刻度を自動採点</p>
-					</div>
-					<div style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
-						<strong style="color: var(--navy); font-size: 13px;">Chao1 未発見推定</strong>
-						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">あと何件潜んでいるかを統計推定</p>
-					</div>
-				</div>
-				<!-- 壊れても止まらない工夫 -->
-				<p style="font-size: 13px; font-weight: 700; color: var(--purple); margin: 0 0 8px; letter-spacing: 0.5px;">壊れても止まらない</p>
-				<div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
-					<div style="background: var(--purple-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;">
-						<strong style="color: var(--navy); font-size: 12px;">LLM出力が壊れる</strong>
-						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">→ 4段階パーサーで部分抽出して続行</p>
-					</div>
-					<div style="background: var(--purple-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;">
-						<strong style="color: var(--navy); font-size: 12px;">APIがタイムアウト</strong>
-						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">→ CLI→SDK→HTTPの3層フォールバック</p>
-					</div>
-					<div style="background: var(--purple-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;">
-						<strong style="color: var(--navy); font-size: 12px;">リポが巨大すぎる</strong>
-						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">→ バッチ分割、1つ死んでも他は続行</p>
-					</div>
-					<div style="background: var(--purple-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;">
-						<strong style="color: var(--navy); font-size: 12px;">途中でプロセスが死ぬ</strong>
-						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">→ append-only で記録済み分は残る</p>
-					</div>
-					<div style="background: var(--purple-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;">
-						<strong style="color: var(--navy); font-size: 12px;">同じバグを何度も報告</strong>
-						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">→ 3層の重複排除で自動統合</p>
-					</div>
-				</div>
-				<span class="page-num">4 / 11</span>
-			</div>
-		</div>
-
-		<!-- ===== 6. delta fix ===== -->
-		<div class="slide" data-slide="4">
-			<div class="slide-inner">
-				<div class="section-badge"><span class="badge-label">自律性</span></div>
-				<h2 style="margin-top: 16px;">delta-fix</h2>
-				<p>Issue や確定バグをもとに、コード修正・コミット・デグレチェック・PR作成までを自動化</p>
-				<div class="code-block">
-					<span class="prompt">❯</span> <span class="cmd">/delta-fix</span><br>
-					<span class="prompt">❯</span> <span class="cmd">/delta-fix</span> <span class="flag">--issue 42</span><br>
-					<span class="prompt">❯</span> <span class="cmd">/delta-fix</span> <span class="flag">--ids dl-12345678</span>
-				</div>
-				<div class="flow" style="margin-top: 36px;">
-					<div class="flow-step">検出</div>
-					<span class="flow-arrow">→</span>
-					<div class="flow-step">改修コミット</div>
-					<span class="flow-arrow">→</span>
-					<div class="flow-step">リグレチェック</div>
-					<span class="flow-arrow">→</span>
-					<div class="flow-step active">PR作成</div>
-				</div>
-				<span class="page-num">5 / 11</span>
-			</div>
-		</div>
-
-		<!-- ===== 8. Playwright ===== -->
-		<div class="slide" data-slide="5">
-			<div class="slide-inner">
-				<div class="section-badge"><span class="badge-label">クオリティ</span>				</div>
-				<h2 style="margin-top: 16px;">microsoft/playwright <span
+				<div class="section-badge"><span class="badge-label">クオリティ</span> </div>
+				<h2 style="margin-top: 16px;">【実績】microsoft/playwright <span
 						style="font-weight: 400; font-size: 20px; color: var(--text-light);">⭐ 70K</span></h2>
+				<div
+					style="margin-top: 24px; margin-bottom: 36px; display: flex; align-items: center; gap: 16px; background: linear-gradient(135deg, #f0eeff 0%, #e6faf5 100%); border: 2px solid var(--purple); border-radius: 12px; padding: 16px 24px;">
+					<svg width="32" height="32" viewBox="0 0 16 16" fill="none">
+						<path
+							d="M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A5.734 5.734 0 0 1 5 7.123v3.505a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.95-.218Z"
+							fill="#8250df" />
+					</svg>
+					<div>
+						<span style="font-size: 20px; font-weight: 800; color: #8250df;">Merged</span>
+						<span style="font-size: 15px; color: var(--navy); margin-left: 8px;">PR <a
+								href="https://github.com/microsoft/playwright/pull/39744"
+								style="color: var(--purple); text-decoration: none;">#39744</a> —
+							Microsoft公式メンテナがレビュー・承認</span>
+					</div>
+					<span style="font-size: 28px; margin-left: auto;">🎉</span>
+				</div>
+				<h3 style="margin-top: 36px;">バグの内容</h3>
 				<p>スクリーンショットの画質設定で <span class="hl-navy">0〜100</span> の指定が可能</p>
 				<div class="callout" style="margin: 20px 0;">
 					<span class="mono">quality: 0</span> を入れると
@@ -845,32 +758,33 @@
 				</div>
 				<p>「説明と実際の動きが食い違っている」(高品質化してしまった)</p>
 				<p>→ これを <span class="hl">矛盾点</span> として検出します</p>
-				<div style="margin-top: 24px; display: flex; align-items: center; gap: 16px; background: linear-gradient(135deg, #f0eeff 0%, #e6faf5 100%); border: 2px solid var(--purple); border-radius: 12px; padding: 16px 24px;">
-					<svg width="32" height="32" viewBox="0 0 16 16" fill="none">
-						<path d="M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A5.734 5.734 0 0 1 5 7.123v3.505a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.95-.218Z" fill="#8250df"/>
-					</svg>
-					<div>
-						<span style="font-size: 20px; font-weight: 800; color: #8250df;">Merged</span>
-						<span style="font-size: 15px; color: var(--navy); margin-left: 8px;">PR <a href="https://github.com/microsoft/playwright/pull/39744" style="color: var(--purple); text-decoration: none;">#39744</a> — Microsoft公式メンテナがレビュー・承認</span>
-					</div>
-					<span style="font-size: 28px; margin-left: auto;">🎉</span>
-				</div>
-				<span class="page-num">6 / 11</span>
+				<span class="page-num">4 / 11</span>
 			</div>
 		</div>
 
 		<!-- ===== 9. OSS Results ===== -->
-		<div class="slide" data-slide="6">
+		<div class="slide" data-slide="4">
 			<div class="slide-inner" style="padding: 48px 64px;">
-				<div class="section-badge"><span class="badge-label">クオリティ</span>				</div>
+				<div class="section-badge"><span class="badge-label">クオリティ</span> </div>
 				<h2 style="margin-bottom: 20px;">OSS全体貢献 <span
 						style="font-weight: 400; font-size: 18px; color: var(--text-light);">3/13〜3/19　7日間</span>
 				</h2>
 				<div style="display: flex; gap: 36px;">
 					<!-- 左: PR→マージ -->
 					<div style="flex: 1;">
-						<h3 style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--purple); margin-bottom: 8px;">
+						<h3
+							style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--purple); margin-bottom: 8px;">
 							PR作成 → マージ</h3>
+						<div
+							style="display: flex; align-items: center; gap: 10px; margin-top: 10px; background: linear-gradient(135deg, #f0eeff 0%, #e6faf5 100%); border: 2px solid var(--purple); border-radius: 10px; padding: 10px 16px;">
+							<svg width="22" height="22" viewBox="0 0 16 16" fill="none">
+								<path
+									d="M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A5.734 5.734 0 0 1 5 7.123v3.505a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.95-.218Z"
+									fill="#8250df" />
+							</svg>
+							<span style="font-size: 16px; font-weight: 800; color: #8250df;">13 Merged</span>
+							<span style="font-size: 13px; color: var(--navy);">across 9 repos 🎉</span>
+						</div>
 						<table class="data-table" style="font-size: 13px; margin-top: 0;">
 							<tbody>
 								<tr>
@@ -920,15 +834,11 @@
 								</tr>
 							</tbody>
 						</table>
-						<div style="display: flex; align-items: center; gap: 10px; margin-top: 10px; background: linear-gradient(135deg, #f0eeff 0%, #e6faf5 100%); border: 2px solid var(--purple); border-radius: 10px; padding: 10px 16px;">
-							<svg width="22" height="22" viewBox="0 0 16 16" fill="none"><path d="M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A5.734 5.734 0 0 1 5 7.123v3.505a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.95-.218Z" fill="#8250df"/></svg>
-							<span style="font-size: 16px; font-weight: 800; color: #8250df;">13 Merged</span>
-							<span style="font-size: 13px; color: var(--navy);">across 9 repos 🎉</span>
-						</div>
 					</div>
 					<!-- 右: Issue＋セキュリティ -->
 					<div style="flex: 1;">
-						<h3 style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--purple); margin-bottom: 8px;">
+						<h3
+							style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--purple); margin-bottom: 8px;">
 							Issue報告 → マージ</h3>
 						<table class="data-table" style="font-size: 13px; margin-top: 0;">
 							<tbody>
@@ -947,66 +857,194 @@
 						<p style="font-size: 14px; font-weight: 700; color: var(--navy); margin-top: 8px;">→ 合計 2件</p>
 
 						<div style="margin-top: 28px;">
-							<h3 style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--purple); margin-bottom: 8px;">
+							<h3
+								style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--purple); margin-bottom: 8px;">
 								セキュリティ脆弱性</h3>
-							<p style="font-size: 14px; color: var(--text); margin: 0;">個別報告 → <span class="hl-navy">合計 3件</span></p>
+							<p style="font-size: 14px; color: var(--text); margin: 0;">個別報告 → <span class="hl-navy">合計
+									3件</span></p>
 						</div>
 
 						<div style="margin-top: 28px;">
-							<h3 style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-light); margin-bottom: 8px;">
+							<h3
+								style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-light); margin-bottom: 8px;">
 								PR → リジェクト</h3>
-							<p style="font-size: 14px; color: var(--text-light); margin: 0;"><span style="color: var(--red); font-weight: 700;">✕</span> 合計 1件</p>
+							<p style="font-size: 14px; color: var(--text-light); margin: 0;"><span
+									style="color: var(--red); font-weight: 700;">✕</span> 合計 1件</p>
 						</div>
 					</div>
 				</div>
-				<span class="page-num">7 / 11</span>
+				<span class="page-num">5 / 11</span>
 			</div>
 		</div>
 
+		<!-- ===== 4. Under the hood + Not brute force (after OSS) ===== -->
+		<div class="slide" data-slide="5">
+			<div class="slide-inner">
+				<div class="section-badge"><span class="badge-label">自律性</span></div>
+				<h2>どのようにバグの発見を実現しているか</h2>
+				<!-- ✕○ 左右比較 -->
+				<div style="display: flex; gap: 32px; margin-top: 36px; margin-bottom: 56px;">
+					<div style="flex: 1; display: flex; align-items: center; gap: 16px;">
+						<span
+							style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: #fff0f0; color: var(--red); font-size: 28px; font-weight: 700; flex-shrink: 0;">✕</span>
+						<p style="font-size: 17px; color: var(--text-light); margin: 0;">依存関係を全部コンテキストに入れる力技</p>
+					</div>
+					<div style="flex: 1; display: flex; align-items: center; gap: 16px;">
+						<span
+							style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: var(--cyan-bg); color: var(--cyan); font-size: 28px; font-weight: 700; flex-shrink: 0;">○</span>
+						<p style="font-size: 17px; font-weight: 600; color: var(--navy); margin: 0;"><span
+								class="hl">暗黙の前提</span> や <span class="hl">過去の関係</span> が<br>どう矛盾するかを賢く取りにいく</p>
+					</div>
+				</div>
+				<!-- ステップ一覧 -->
+				<p
+					style="font-size: 13px; font-weight: 700; color: var(--cyan); margin: 0 0 8px; letter-spacing: 0.5px;">
+					delta-scan</p>
+				<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px;">
+					<div
+						style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+						<strong style="color: var(--navy); font-size: 13px;">Git履歴ベース選定</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">変更頻度・バグ修正頻度で優先スキャン</p>
+					</div>
+					<div
+						style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+						<strong style="color: var(--navy); font-size: 13px;">Co-change 検出</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">一緒に変更された履歴から暗黙の依存を発見</p>
+					</div>
+					<div
+						style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+						<strong style="color: var(--navy); font-size: 13px;">地雷マップ生成</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">仮想改修で壊れる場所をシミュレーション</p>
+					</div>
+					<div
+						style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+						<strong style="color: var(--navy); font-size: 13px;">構造矛盾 × 6パターン</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">意味的な矛盾をパターン分類で自動検証</p>
+					</div>
+					<div
+						style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+						<strong style="color: var(--navy); font-size: 13px;">Sibling Map 学習</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">関連ペアを蓄積、使うほど精度が育つ</p>
+					</div>
+					<div
+						style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+						<strong style="color: var(--navy); font-size: 13px;">適応的スキャン範囲</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">コミット頻度で期間を自動調整</p>
+					</div>
+					<div
+						style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+						<strong style="color: var(--navy); font-size: 13px;">情報理論スコアリング</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">新規性 × 集中度で深刻度を自動採点</p>
+					</div>
+					<div
+						style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+						<strong style="color: var(--navy); font-size: 13px;">Chao1 未発見推定</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">あと何件潜んでいるかを統計推定</p>
+					</div>
+				</div>
+				<!-- 壊れても止まらない工夫 -->
+				<p
+					style="font-size: 13px; font-weight: 700; color: var(--purple); margin: 0 0 8px; letter-spacing: 0.5px;">
+					壊れても止まらない</p>
+				<div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
+					<div
+						style="background: var(--purple-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;">
+						<strong style="color: var(--navy); font-size: 12px;">LLM出力が壊れる</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">→ 4段階パーサーで部分抽出して続行</p>
+					</div>
+					<div
+						style="background: var(--purple-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;">
+						<strong style="color: var(--navy); font-size: 12px;">APIがタイムアウト</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">→ CLI→SDK→HTTPの3層フォールバック
+						</p>
+					</div>
+					<div
+						style="background: var(--purple-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;">
+						<strong style="color: var(--navy); font-size: 12px;">リポが巨大すぎる</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">→ バッチ分割、1つ死んでも他は続行</p>
+					</div>
+					<div
+						style="background: var(--purple-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;">
+						<strong style="color: var(--navy); font-size: 12px;">途中でプロセスが死ぬ</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">→ append-only で記録済み分は残る
+						</p>
+					</div>
+					<div
+						style="background: var(--purple-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;">
+						<strong style="color: var(--navy); font-size: 12px;">同じバグを何度も報告</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">→ 3層の重複排除で自動統合</p>
+					</div>
+				</div>
+				<span class="page-num">6 / 11</span>
+			</div>
+		</div>
 
 		<!-- ===== Why it works ===== -->
-		<div class="slide" data-slide="7">
+		<div class="slide" data-slide="6">
 			<div class="slide-inner">
 				<div class="section-badge"><span class="badge-label">クオリティ</span></div>
 				<h2>なぜ効くのか — 構造崩壊理論</h2>
-				<p style="font-size: 15px; color: var(--text-light); margin-bottom: 6px;">ソフトウェアを構造物と捉え、<span class="hl">矛盾をバグの発生源</span> として検出する</p>
-				<p style="font-size: 14px; color: var(--text-light); margin-bottom: 20px;">小さな矛盾10個より、<strong>構造的な矛盾1個</strong> のほうがシステムを壊す</p>
+				<p style="font-size: 15px; color: var(--text-light); margin-bottom: 6px;">ソフトウェアを構造物と捉え、<span
+						class="hl">矛盾をバグの発生源</span> として検出する</p>
+				<p style="font-size: 14px; color: var(--text-light); margin-bottom: 20px;">
+					小さな矛盾10個より、<strong>構造的な矛盾1個</strong> のほうがシステムを壊す</p>
 				<!-- 理論の核心：構造矛盾 vs 事実的ノイズ -->
 				<div style="display: flex; gap: 24px; align-items: stretch; margin-bottom: 20px;">
-					<div style="flex: 1; background: var(--bg-alt); border: 1px solid var(--border); border-radius: 10px; padding: 20px; text-align: center;">
-						<div style="font-size: 13px; color: var(--text-light); margin-bottom: 8px;">事実的なノイズ（typo・命名ミス等）</div>
-						<div style="display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px;">
-							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
-							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
-							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
-							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
-							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
-							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
-							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
-							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
-							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
-							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+					<div
+						style="flex: 1; background: var(--bg-alt); border: 1px solid var(--border); border-radius: 10px; padding: 20px; text-align: center;">
+						<div style="font-size: 13px; color: var(--text-light); margin-bottom: 8px;">事実的なノイズ（typo・命名ミス等）
+						</div>
+						<div
+							style="display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px;">
+							<span
+								style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span
+								style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span
+								style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span
+								style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span
+								style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span
+								style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span
+								style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span
+								style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span
+								style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span
+								style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
 						</div>
 						<div style="font-size: 32px; font-weight: 700; color: var(--text-light);">×10</div>
-						<div style="margin-top: 8px; height: 6px; background: #e5e7eb; border-radius: 3px;"><div style="width: 75%; height: 100%; background: var(--cyan); border-radius: 3px;"></div></div>
+						<div style="margin-top: 8px; height: 6px; background: #e5e7eb; border-radius: 3px;">
+							<div style="width: 75%; height: 100%; background: var(--cyan); border-radius: 3px;"></div>
+						</div>
 						<div style="font-size: 12px; color: var(--text-light); margin-top: 4px;">まだ動く</div>
 					</div>
 					<div style="flex: 0 0 48px; display: flex; align-items: center; justify-content: center;">
 						<span style="font-size: 28px; color: var(--red); font-weight: 700;">＜</span>
 					</div>
-					<div style="flex: 1; background: #fff5f5; border: 1px solid #fecaca; border-radius: 10px; padding: 20px; text-align: center;">
-						<div style="font-size: 13px; color: var(--red); margin-bottom: 8px; font-weight: 600;">構造的矛盾（設計の前提が壊れている）</div>
+					<div
+						style="flex: 1; background: #fff5f5; border: 1px solid #fecaca; border-radius: 10px; padding: 20px; text-align: center;">
+						<div style="font-size: 13px; color: var(--red); margin-bottom: 8px; font-weight: 600;">
+							構造的矛盾（設計の前提が壊れている）</div>
 						<div style="display: flex; justify-content: center; margin-bottom: 10px;">
-							<span style="display: inline-block; width: 36px; height: 36px; background: var(--red); border-radius: 5px;"></span>
+							<span
+								style="display: inline-block; width: 36px; height: 36px; background: var(--red); border-radius: 5px;"></span>
 						</div>
 						<div style="font-size: 32px; font-weight: 700; color: var(--red);">×1</div>
-						<div style="margin-top: 8px; height: 6px; background: #e5e7eb; border-radius: 3px;"><div style="width: 8%; height: 100%; background: var(--red); border-radius: 3px;"></div></div>
+						<div style="margin-top: 8px; height: 6px; background: #e5e7eb; border-radius: 3px;">
+							<div style="width: 8%; height: 100%; background: var(--red); border-radius: 3px;"></div>
+						</div>
 						<div style="font-size: 12px; color: var(--red); font-weight: 600; margin-top: 4px;">崩壊</div>
 					</div>
 				</div>
 				<!-- 検証と論文 -->
 				<div style="display: flex; gap: 16px; margin-bottom: 16px;">
-					<div style="flex: 1; background: var(--cyan-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px;">
+					<div
+						style="flex: 1; background: var(--cyan-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px;">
 						<p style="font-size: 13px; color: var(--navy); margin: 0; line-height: 1.7;">
 							<strong>LLM 11モデル × 5ベンダー</strong> での実験と<br>
 							<strong>SAT問題</strong> での数学的検証により<br>
@@ -1014,10 +1052,12 @@
 							<span style="font-weight: 700; color: var(--cyan); font-size: 15px;">指数関数的に崩壊する</span> ことを確認
 						</p>
 					</div>
-					<div style="flex: 1; background: var(--bg-alt); border: 1px solid var(--border); border-radius: 10px; padding: 16px;">
+					<div
+						style="flex: 1; background: var(--bg-alt); border: 1px solid var(--border); border-radius: 10px; padding: 16px;">
 						<p style="font-size: 13px; color: var(--navy); margin: 0; line-height: 1.7;">
 							<strong>構造崩壊理論</strong>（独自理論）として論文化<br>
-							<span style="font-size: 11px; color: var(--text-light);">Structural Collapse as Information Loss:<br>The Exponential Decay Mechanism</span><br>
+							<span style="font-size: 11px; color: var(--text-light);">Structural Collapse as Information
+								Loss:<br>The Exponential Decay Mechanism</span><br>
 							<span style="font-size: 11px; color: var(--text-light);">※東大松尾研OB（学際発表経験有）による査読済み</span>
 						</p>
 					</div>
@@ -1027,6 +1067,32 @@
 					DeltaLint はこの理論で「設計図の食い違い」を自動検出する。<br>
 					だから <strong style="color: var(--cyan);">普通のリンターやテストでは見つからないバグ</strong> が見つかる。
 				</p>
+				<span class="page-num">7 / 11</span>
+			</div>
+		</div>
+
+		<!-- ===== delta-fix (after なぜ効くのか) ===== -->
+		<div class="slide" data-slide="7">
+			<div class="slide-inner">
+				<div class="section-badge"><span class="badge-label">自律性</span></div>
+				<h2 style="margin-top: 16px;">delta-fix</h2>
+				<p>Issue や確定バグをもとに、コード修正・コミット・デグレチェック・PR作成までを自動化</p>
+				<div class="code-block">
+					<span class="prompt">❯</span> <span class="cmd">/delta-fix</span><br>
+					<span class="prompt">❯</span> <span class="cmd">/delta-fix</span> <span class="flag">--issue
+						42</span><br>
+					<span class="prompt">❯</span> <span class="cmd">/delta-fix</span> <span class="flag">--ids
+						dl-12345678</span>
+				</div>
+				<div class="flow" style="margin-top: 36px;">
+					<div class="flow-step">検出</div>
+					<span class="flow-arrow">→</span>
+					<div class="flow-step">改修コミット</div>
+					<span class="flow-arrow">→</span>
+					<div class="flow-step">リグレチェック</div>
+					<span class="flow-arrow">→</span>
+					<div class="flow-step active">PR作成</div>
+				</div>
 				<span class="page-num">8 / 11</span>
 			</div>
 		</div>
@@ -1112,11 +1178,11 @@
 
 		// ── Auto-inject slide headers ──
 		const sectionMap = {
-			3: { label: '自律性' },
-			4: { label: '自律性' },
-			5: { label: 'クオリティ' },
+			3: { label: 'クオリティ' },
+			4: { label: 'クオリティ' },
+			5: { label: '自律性' },
 			6: { label: 'クオリティ' },
-			7: { label: 'クオリティ' },
+			7: { label: '自律性' },
 			8: { label: 'インパクト' },
 			9: { label: 'インパクト' },
 		};

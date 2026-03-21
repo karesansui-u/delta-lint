@@ -49,7 +49,7 @@ claude plugin install delta-lint@delta-lint
 
 ```
 delta-scan                    # 直近3ヶ月の変更ファイルを自動スキャン
-delta view                    # ダッシュボードを表示
+delta-view                    # ダッシュボードを表示
 ```
 
 ### 自律実行の流れ

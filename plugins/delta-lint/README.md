@@ -41,7 +41,7 @@ API キーもない   → dry-run モードで動作
 > delta-scan --depth deep                 # 依存チェーンを辿る深層スキャン
 > delta-scan --lens security              # セキュリティ特化
 > delta-scan --scope all --lens stress    # 全ファイル × ストレステスト
-> delta view                              # ダッシュボードをブラウザで表示
+> delta-view                              # ダッシュボードをブラウザで表示
 > delta init                              # リポジトリの初期化（構造分析）
 ```
 
