@@ -601,14 +601,12 @@ def cmd_scan(args):
                         dashboard_opened = True
                         print(f"\n📊 ダッシュボードを開きました（{current_findings}件検出済み）。"
                               f" スキャンはバックグラウンドで継続中...", file=sys.stderr)
-                new_in_batch = current_findings - findings_before
                 _print_batch_progress(
                     batch_idx, len(batches), len(batch),
                     current_findings, _time.monotonic() - t0,
                     mode_label="Wide",
                 )
-                if new_in_batch > findings_before:
-                    findings_before = current_findings
+                findings_before = current_findings
         else:
             # Parallel execution
             print(f"  並列実行: {parallel} workers", file=sys.stderr)
@@ -742,14 +740,12 @@ def cmd_scan(args):
                         dashboard_opened = True
                         print(f"\n📊 ダッシュボードを開きました（{current_findings}件検出済み）。"
                               f" スキャンはバックグラウンドで継続中...", file=sys.stderr)
-                new_in_batch = current_findings - findings_before
                 _print_batch_progress(
                     batch_idx, len(batches), len(batch),
                     current_findings, _time.monotonic() - t0,
                     mode_label="Smart",
                 )
-                if new_in_batch > findings_before:
-                    findings_before = current_findings
+                findings_before = current_findings
         else:
             # Parallel execution
             print(f"  並列実行: {parallel} workers", file=sys.stderr)
@@ -871,8 +867,11 @@ def cmd_scan(args):
                         "--lang", getattr(args, 'lang', 'en'),
                     ]
                     _depth = getattr(args, '_depth', 'default')
+                    _lens = getattr(args, '_lens', 'default')
                     if _depth != "default":
                         cmd.extend(["--depth", _depth])
+                    if _lens != "default":
+                        cmd.extend(["--lens", _lens])
                     if getattr(args, 'since', None):
                         cmd.extend(["--since", since_val])
                     if getattr(args, 'verbose', False):

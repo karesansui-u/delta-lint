@@ -189,7 +189,7 @@ def generate_fixes(findings: list[dict], context, model: str) -> list[dict]:
     import anthropic
 
     api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
-    client = anthropic.Anthropic(api_key=api_key)
+    client = anthropic.Anthropic(api_key=api_key, timeout=600.0) if api_key else anthropic.Anthropic(timeout=600.0)
 
     all_fixes = []
     source_code = context.to_prompt_string() if hasattr(context, 'to_prompt_string') else ""
