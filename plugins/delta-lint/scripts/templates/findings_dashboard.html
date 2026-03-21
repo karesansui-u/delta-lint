@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+$progress_meta
+<title>DeltaLint — $primary_repo</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        surface: { DEFAULT: '#ffffff', 1: '#f7f8fa', 2: '#f0f2f5', 3: '#e3e8ee', 4: '#d8dde4' },
+        accent: { DEFAULT: '#0a7d5a', dim: 'rgba(10,125,90,0.08)' },
+        txt: { DEFAULT: '#3c4257', muted: '#697386', dim: '#a3acb9', bright: '#1a1f36' },
+        sev: { high: '#cd3d64', medium: '#c97a20', low: '#a3acb9' },
+        link: '#556cd6',
+        file: '#3a7bd5',
+        pat: '#8270db',
+        debt: '#c97a20',
+      }
+    }
+  }
+}
+</script>
+<style>
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
+.pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+.tm-cell { position:absolute; overflow:hidden; cursor:pointer; transition:filter .12s,box-shadow .12s; border-radius:2px; }
+.tm-cell:hover { filter:brightness(1.25); box-shadow:0 0 0 1px rgba(0,217,126,.5); z-index:10; }
+.tm-cell.selected { box-shadow:0 0 0 2px #00d97e,0 0 12px rgba(0,217,126,.25); z-index:20; }
+.tm-label { padding:2px 4px; font-size:10px; color:rgba(255,255,255,.95); text-shadow:0 1px 3px rgba(0,0,0,.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none; }
+.tm-hits { padding:0 4px; font-size:9px; color:rgba(255,255,255,.7); pointer-events:none; }
+.tm-group-label { position:absolute; font-size:10px; font-weight:600; color:#697386; padding:0 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none; z-index:5; }
+.pb-segment { height:100%; position:relative; transition:flex .3s; cursor:default; }
+.pb-segment:hover { filter:brightness(1.3); }
+.pb-seg-label { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:600; color:rgba(255,255,255,.9); white-space:nowrap; overflow:hidden; pointer-events:none; }
+.custom-scroll::-webkit-scrollbar { width:3px; }
+.custom-scroll::-webkit-scrollbar-thumb { background:#d8dde4; border-radius:2px; }
+.side-panel { position:absolute; right:0; top:0; bottom:0; width:0; overflow:hidden; transition:width .2s ease; z-index:10; box-shadow:-4px 0 16px rgba(0,0,0,.08); }
+.side-panel.open { width:400px; }
+.side-panel-inner { width:400px; }
+/* Nav item */
+.nav-item { transition: all .15s; }
+.nav-item:hover { background: rgba(0,0,0,.03); }
+.nav-item.active { background: rgba(10,125,90,.06); border-right: 2px solid #0a7d5a; color: #0a7d5a; }
+</style>
+</head>
+<body class="bg-surface text-txt h-screen overflow-hidden flex font-['Inter',-apple-system,BlinkMacSystemFont,'Segoe_UI',Roboto,sans-serif]">
+
+<!-- ══ Left Sidebar ══ -->
+<aside class="w-[200px] bg-surface-1 border-r border-surface-3 flex flex-col shrink-0 h-screen">
+  <!-- Logo -->
+  <div class="flex items-baseline gap-1.5 px-4 py-4 border-b border-surface-3">
+    <span class="text-[22px] font-light text-accent">&Delta;</span>
+    <span class="text-sm font-semibold text-txt-bright tracking-wide">DeltaLint</span>
+  </div>
+  <!-- Nav -->
+  <nav class="flex-1 py-2">
+    <div class="nav-item active flex items-center gap-2.5 px-4 py-2.5 cursor-pointer text-[13px] font-medium" data-nav="findings">
+      <svg class="w-4 h-4 shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+      検出結果 <span class="ml-auto text-[11px] bg-accent/15 text-accent rounded-full px-2 py-px font-medium" id="findings-nav-count">$total_count</span>
+    </div>
+    <div class="nav-item flex items-center gap-2.5 px-4 py-2.5 cursor-pointer text-[13px] font-medium text-txt-muted" data-nav="coverage">
+      <svg class="w-4 h-4 shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm0 8a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1v-2zm0 8a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1v-2z"/></svg>
+      コマンド一覧
+    </div>
+    <div class="nav-item hidden items-center gap-2.5 px-4 py-2.5 cursor-pointer text-[13px] font-medium text-txt-muted" data-nav="tradeoffs">
+      <svg class="w-4 h-4 shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>
+      トレードオフ <span class="ml-auto text-[11px] bg-surface-4 rounded-full px-2 py-px text-txt-muted" id="tradeoffs-nav-count">0</span>
+    </div>
+    <div class="nav-item flex items-center gap-2.5 px-4 py-2.5 cursor-pointer text-[13px] font-medium text-txt-muted" data-nav="landmine" id="nav-landmine">
+      <svg class="w-4 h-4 shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+      地雷マップ
+    </div>
+    <div class="nav-item flex items-center gap-2.5 px-4 py-2.5 cursor-pointer text-[13px] font-medium text-txt-muted" data-nav="scoring">
+      <svg class="w-4 h-4 shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3v-6m-3 6v-1m6-9a2 2 0 012 2v10a2 2 0 01-2 2H8a2 2 0 01-2-2V9a2 2 0 012-2h0"/></svg>
+      計算ロジック
+    </div>
+  </nav>
+  <!-- Footer info -->
+  <div class="px-4 py-3 border-t border-surface-3 text-[10px] text-txt-dim leading-relaxed">
+    <div>$generated_at</div>
+    $custom_scoring_badge
+  </div>
+</aside>
+
+<!-- ══ Main Content ══ -->
+<main class="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+
+  <!-- ── Header Bar ── -->
+  <div class="flex items-center justify-between px-6 py-3 border-b border-surface-3 bg-surface-1/30 shrink-0">
+    <div class="flex items-baseline gap-2.5">
+      <span class="text-[17px] font-bold text-txt-bright tracking-tight font-mono">$primary_repo</span>
+    </div>
+    <div class="text-[11px] text-txt-dim">$generated_at</div>
+  </div>
+
+  $progress_html
+
+  <!-- ── KPI Row ── -->
+  <div class="flex gap-2.5 px-6 py-3 flex-wrap shrink-0 border-b border-surface-3 bg-surface-1/50">
+    <div class="bg-surface-2 border border-surface-3 rounded-lg px-4 py-2.5 min-w-[100px] text-center">
+      <div class="text-2xl font-bold text-link">$total_count</div>
+      <div class="text-[11px] text-txt-muted font-semibold mt-0.5">シグナル総数</div>
+      <div class="text-[10px] text-txt-dim mt-0.5">LLM が検出した矛盾候補</div>
+    </div>
+    <div class="bg-surface-2 border border-surface-3 rounded-lg px-4 py-2.5 min-w-[100px] text-center">
+      <div class="text-2xl font-bold text-sev-high">$confirmed_bugs</div>
+      <div class="text-[11px] text-txt-muted font-semibold mt-0.5">確定バグ</div>
+      <div class="text-[10px] text-txt-dim mt-0.5">OSSに Issue/PR を出せるレベル</div>
+    </div>
+    <div class="bg-surface-2 border border-surface-3 rounded-lg px-4 py-2.5 min-w-[100px] text-center">
+      <div class="text-2xl font-bold text-[#ffa502]">$investigating</div>
+      <div class="text-[11px] text-txt-muted font-semibold mt-0.5">未検証</div>
+      <div class="text-[10px] text-txt-dim mt-0.5">LLM検出・人間未確認</div>
+    </div>
+    <div class="bg-surface-2 border border-surface-3 rounded-lg px-4 py-2.5 min-w-[100px] text-center">
+      <div class="text-2xl font-bold text-debt">$debt_total</div>
+      <div class="text-[11px] text-txt-muted font-semibold mt-0.5">技術的負債</div>
+      <div class="text-[10px] text-txt-dim mt-0.5">係数 × 文脈</div>
+    </div>
+    <div class="bg-surface-2 border border-surface-3 rounded-lg px-4 py-2.5 min-w-[100px] text-center">
+      <div class="text-2xl font-bold text-accent">$scan_grade</div>
+      <div class="text-[11px] text-txt-muted font-semibold mt-0.5">スキャン深度</div>
+      <div class="text-[10px] text-txt-dim mt-0.5">コマンド一覧を参照</div>
+    </div>
+  </div>
+
+  <!-- ══ Findings Panel (default) ══ -->
+  <div class="nav-panel flex flex-col flex-1 min-h-0" id="panel-findings">
+    <div class="px-6 py-4 shrink-0 border-b border-surface-3">
+      <h2 class="text-lg font-bold text-txt-bright">検出結果</h2>
+      <p class="text-[11px] text-txt-dim mt-1">構造矛盾や技術的負債を一覧表示。フィルタやソートで優先度の高い問題を確認できます。</p>
+    </div>
+    <!-- separator -->
+    <div class="border-b border-surface-3 shrink-0"></div>
+    <div class="flex items-center gap-3 px-6 pt-2 pb-1 shrink-0">
+      <div class="flex rounded-lg border border-surface-3 overflow-hidden" id="open-closed-toggle"></div>
+    </div>
+    <div class="relative flex-1 min-h-0 overflow-hidden">
+      <div class="flex flex-col h-full">
+        <div class="px-6 pb-6 overflow-x-auto flex-1">
+          <table class="w-full border-collapse text-[13px]" id="findings-table">
+            <thead>
+              <tr>
+                <th class="bg-surface-2 text-txt-muted font-semibold uppercase text-[11px] tracking-wider px-3 py-2.5 text-left border-b border-surface-3 cursor-pointer select-none whitespace-nowrap sticky top-0 z-[2] hover:text-txt" data-col="id">ID <span class="sort-arrow ml-1 opacity-40">&#9650;</span></th>
+                <th class="bg-surface-2 text-txt-muted font-semibold uppercase text-[11px] tracking-wider px-3 py-2.5 text-left border-b border-surface-3 cursor-pointer select-none whitespace-nowrap sticky top-0 z-[2] hover:text-txt" data-col="category">確度 <span class="sort-arrow ml-1 opacity-40">&#9650;</span></th>
+                <th class="bg-surface-2 text-txt-muted font-semibold uppercase text-[11px] tracking-wider px-3 py-2.5 text-left border-b border-surface-3 cursor-pointer select-none whitespace-nowrap sticky top-0 z-[2] hover:text-txt sorted" data-col="severity">重大度 <span class="sort-arrow ml-1 opacity-100 text-link">&#9660;</span></th>
+                <th class="bg-surface-2 text-txt-muted font-semibold uppercase text-[11px] tracking-wider px-3 py-2.5 text-left border-b border-surface-3 cursor-pointer select-none whitespace-nowrap sticky top-0 z-[2] hover:text-txt" data-col="title">内容 <span class="sort-arrow ml-1 opacity-40">&#9650;</span></th>
+                <th class="bg-surface-2 text-txt-muted font-semibold uppercase text-[11px] tracking-wider px-3 py-2.5 text-left border-b border-surface-3 cursor-pointer select-none whitespace-nowrap sticky top-0 z-[2] hover:text-txt" data-col="file">ファイル <span class="sort-arrow ml-1 opacity-40">&#9650;</span></th>
+                <th class="bg-surface-2 text-txt-muted font-semibold uppercase text-[11px] tracking-wider px-3 py-2.5 text-left border-b border-surface-3 cursor-pointer select-none whitespace-nowrap sticky top-0 z-[2] hover:text-txt" data-col="roi_score">技術的負債 <span class="sort-arrow ml-1 opacity-40">&#9650;</span></th>
+                <th class="bg-surface-2 text-txt-muted font-semibold uppercase text-[11px] tracking-wider px-3 py-2.5 text-left border-b border-surface-3 cursor-pointer select-none whitespace-nowrap sticky top-0 z-[2] hover:text-txt" data-col="priority">優先度 <span class="sort-arrow ml-1 opacity-40">&#9650;</span></th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+          <div class="text-center py-16 text-txt-dim text-sm hidden" id="empty">条件に一致する検出結果がありません。</div>
+        </div>
+      </div>
+      <div class="side-panel bg-surface-1 border-l border-surface-3 shrink-0" id="findings-side">
+        <div class="side-panel-inner h-full overflow-y-auto p-4 custom-scroll" id="side-inner">
+          <p class="text-txt-dim text-center text-[11px] mt-10">行をクリックして詳細を表示</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Landmine Map Panel ══ -->
+  <div class="nav-panel hidden flex-col flex-1 min-h-0" id="panel-landmine">
+    <div class="px-6 py-4 shrink-0 border-b border-surface-3">
+      <h2 class="text-lg font-bold text-txt-bright">地雷マップ</h2>
+      <p class="text-[11px] text-txt-dim mt-1">ファイルごとのリスクスコアを可視化。リスクの高いファイルを優先的に確認できます。</p>
+    </div>
+    <div class="hidden items-center gap-2 px-4 py-2 bg-blue-50 border-b border-blue-200 text-[11px] text-blue-700 shrink-0" id="lm-simple-banner">
+      <svg class="w-3.5 h-3.5 shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      findings ベースの簡易表示です。<code class="bg-blue-100 px-1.5 py-0.5 rounded text-[10px] mx-1">delta-scan --full</code> でより正確な地雷マップを生成できます。
+    </div>
+    <div class="grid flex-1 min-h-0 overflow-hidden" style="grid-template-columns:1fr 320px;grid-template-rows:1fr auto;" id="lm-container">
+      <div class="flex flex-col overflow-hidden min-h-0">
+        <div class="flex-1 relative overflow-hidden min-h-0" id="treemap-wrap"></div>
+        <div class="h-14 border-t border-surface-3 bg-surface-1 flex items-center px-4 gap-3 shrink-0">
+          <div class="text-[10px] uppercase tracking-wider text-txt-dim shrink-0 w-16">パターン分布</div>
+          <div class="flex-1 flex h-7 rounded overflow-hidden bg-surface-2" id="pattern-chart"></div>
+          <div class="flex gap-2.5 text-[10px] text-txt-dim shrink-0" id="pattern-legend"></div>
+        </div>
+      </div>
+      <div class="bg-surface-1 border-l border-surface-3 flex flex-col overflow-hidden" style="grid-row:1/3;grid-column:2;">
+        <div class="flex border-b border-surface-3 shrink-0">
+          <div class="lm-panel-tab flex-1 py-2.5 text-center text-[11px] font-semibold text-txt-dim cursor-pointer border-b-2 border-transparent hover:text-txt-muted transition-all active text-accent !border-accent" data-lm-tab="ranking">リスク順位</div>
+          <div class="lm-panel-tab flex-1 py-2.5 text-center text-[11px] font-semibold text-txt-dim cursor-pointer border-b-2 border-transparent hover:text-txt-muted transition-all" data-lm-tab="detail">詳細</div>
+        </div>
+        <div class="flex-1 overflow-y-auto custom-scroll">
+          <div class="lm-tab-pane active" id="lm-pane-ranking"></div>
+          <div class="lm-tab-pane hidden" id="lm-pane-detail">
+            <div class="p-3.5" id="lm-detail-content">
+              <p class="text-txt-dim text-center text-[11px] py-5">ファイルをクリックして詳細を表示</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="px-4 py-1 bg-surface-1 border-t border-surface-3 flex items-center gap-3 text-[10px] text-txt-dim shrink-0">
+      <div class="flex gap-2.5">
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:#d1f5e4"></span>安全</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:#6ecba0"></span>低</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:#e8a44a"></span>中</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:#e07050"></span>高</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm inline-block" style="background:#cd3d64"></span>危険</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Trade-offs Panel ══ -->
+  <div class="nav-panel hidden flex-col flex-1 min-h-0" id="panel-tradeoffs">
+    <div class="flex gap-3 px-6 py-4 flex-wrap shrink-0" id="tradeoff-summary"></div>
+    <div class="flex gap-2 px-6 pb-3 flex-wrap shrink-0" id="tradeoff-filters">
+      <span class="text-txt-muted text-xs leading-6">分類:</span>
+    </div>
+    <div class="px-6 pb-6 overflow-x-auto flex-1">
+      <table class="w-full border-collapse text-[13px]" id="tradeoffs-table">
+        <thead>
+          <tr>
+            <th class="bg-surface-2 text-txt-muted font-semibold uppercase text-[11px] tracking-wider px-3 py-2.5 text-left border-b border-surface-3" data-tcol="id">ID</th>
+            <th class="bg-surface-2 text-txt-muted font-semibold uppercase text-[11px] tracking-wider px-3 py-2.5 text-left border-b border-surface-3" data-tcol="pattern">パターン</th>
+            <th class="bg-surface-2 text-txt-muted font-semibold uppercase text-[11px] tracking-wider px-3 py-2.5 text-left border-b border-surface-3" data-tcol="files">対象ファイル</th>
+            <th class="bg-surface-2 text-txt-muted font-semibold uppercase text-[11px] tracking-wider px-3 py-2.5 text-left border-b border-surface-3" data-tcol="why_type">分類</th>
+            <th class="bg-surface-2 text-txt-muted font-semibold uppercase text-[11px] tracking-wider px-3 py-2.5 text-left border-b border-surface-3" data-tcol="why">理由</th>
+            <th class="bg-surface-2 text-txt-muted font-semibold uppercase text-[11px] tracking-wider px-3 py-2.5 text-left border-b border-surface-3" data-tcol="author">判断者</th>
+            <th class="bg-surface-2 text-txt-muted font-semibold uppercase text-[11px] tracking-wider px-3 py-2.5 text-left border-b border-surface-3" data-tcol="approved_by">承認者</th>
+            <th class="bg-surface-2 text-txt-muted font-semibold uppercase text-[11px] tracking-wider px-3 py-2.5 text-left border-b border-surface-3" data-tcol="date">日付</th>
+          </tr>
+        </thead>
+        <tbody id="tradeoff-tbody"></tbody>
+      </table>
+      <div class="text-center py-16 text-txt-dim text-sm hidden" id="tradeoff-empty">
+        意図的トレードオフはありません。<br>
+        <span class="text-xs mt-2 inline-block"><code class="bg-surface-2 px-2 py-0.5 rounded text-txt-muted">delta suppress &lt;finding-number&gt;</code> でsuppressすると、ここに理由が記録されます。</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Coverage Matrix Panel ══ -->
+  <div class="nav-panel hidden flex-col flex-1 min-h-0" id="panel-coverage">
+    <div class="px-6 py-4 shrink-0 border-b border-surface-3">
+      <h2 class="text-lg font-bold text-txt-bright">コマンド一覧</h2>
+      <p class="text-[11px] text-txt-dim mt-1">利用可能なコマンド。クリックでコピーできます。</p>
+    </div>
+    <div class="px-6 py-6 overflow-y-auto flex-1 text-[13px] leading-relaxed text-txt">
+
+      <!-- 統合カバレッジマトリクス: 行=広さ×深さ, 列=質 -->
+      <div>
+        <div class="overflow-x-auto">
+          <table class="w-full border-collapse text-[12px]" id="coverage-matrix">
+            <thead>
+              <tr>
+                <th class="bg-surface-2 text-txt-muted font-semibold text-[10px] tracking-wider px-3 py-2 text-left border border-surface-3">広さ × 深さ</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="text-[10px] text-txt-dim mt-3">クリックでコマンドをコピー</p>
+
+        <p class="text-txt-muted text-xs mt-6 mb-4">
+          delta-scan は <strong>広さ</strong>（対象ファイル）× <strong>深さ</strong>（依存の辿り方）× <strong>質</strong>（検出手法）の3軸で構成されます。<br>
+          各軸を独立に指定できます: <code class="bg-surface-2 px-1.5 py-0.5 rounded">delta-scan --scope wide --depth deep --lens security</code>
+        </p>
+
+        <!-- 軸の説明 -->
+        <div class="grid grid-cols-3 gap-3">
+          <div class="bg-surface-2 border border-surface-3 rounded-lg p-3">
+            <h4 class="font-bold text-accent text-xs mb-2">広さ (--scope)</h4>
+            <div class="space-y-1.5 text-[11px]">
+              <div><code class="bg-surface-1 px-1 rounded">diff</code> <span class="text-txt-muted">直近3ヶ月の変更（デフォルト、--since で期間変更可）</span></div>
+              <div><code class="bg-surface-1 px-1 rounded">pr</code> <span class="text-txt-muted">ベースブランチからの全差分</span></div>
+              <div><code class="bg-surface-1 px-1 rounded">smart</code> <span class="text-txt-muted">git履歴で高リスク優先</span></div>
+              <div><code class="bg-surface-1 px-1 rounded">wide</code> <span class="text-txt-muted">全ファイル</span></div>
+            </div>
+          </div>
+          <div class="bg-surface-2 border border-surface-3 rounded-lg p-3">
+            <h4 class="font-bold text-xs mb-2" style="color:#60a5fa">深さ (--depth)</h4>
+            <div class="space-y-1.5 text-[11px]">
+              <div>指定なし <span class="text-txt-muted">直接の依存のみ（デフォルト）</span></div>
+              <div><code class="bg-surface-1 px-1 rounded">deep</code> <span class="text-txt-muted">依存の依存まで辿り根本から影響範囲を解析</span></div>
+            </div>
+          </div>
+          <div class="bg-surface-2 border border-surface-3 rounded-lg p-3">
+            <h4 class="font-bold text-xs mb-2" style="color:#e879f9">質 (--lens)</h4>
+            <div class="space-y-1.5 text-[11px]">
+              <div><code class="bg-surface-1 px-1 rounded">default</code> <span class="text-txt-muted">構造矛盾検査（デフォルト）</span></div>
+              <div><code class="bg-surface-1 px-1 rounded">stress</code> <span class="text-txt-muted">仮想改修で壊れ方を実験</span></div>
+              <div><code class="bg-surface-1 px-1 rounded">security</code> <span class="text-txt-muted">認証・権限・入力検証に特化</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- delta-fix セクション -->
+        <div class="mt-8 border-t border-surface-3 pt-6">
+          <h3 class="font-bold text-accent text-sm mb-3">delta-fix — 自動修正 &amp; PR作成</h3>
+          <p class="text-txt-muted text-xs mb-4">検出した finding を自動修正し、ブランチ作成→デグレチェック→commit→push→PR→ステータス更新を1コマンドで実行します。</p>
+          <div class="space-y-2 text-[11px]">
+            <div class="bg-surface-2 border border-surface-3 rounded-md p-3">
+              <div class="font-semibold text-txt mb-1">優先度上位3件を自動修正→PR</div>
+              <code class="block bg-surface-1 rounded px-3 py-1.5 text-xs font-mono cursor-pointer hover:bg-accent/10 transition-colors" onclick="navigator.clipboard.writeText(this.textContent);this.style.color='#0a7d5a';setTimeout(()=>this.style.color='',800)">delta-fix</code>
+            </div>
+            <div class="bg-surface-2 border border-surface-3 rounded-md p-3">
+              <div class="font-semibold text-txt mb-1">特定の finding を修正</div>
+              <code class="block bg-surface-1 rounded px-3 py-1.5 text-xs font-mono cursor-pointer hover:bg-accent/10 transition-colors" onclick="navigator.clipboard.writeText(this.textContent);this.style.color='#0a7d5a';setTimeout(()=>this.style.color='',800)">delta-fix --ids dl-xxxxxxxx</code>
+            </div>
+            <div class="bg-surface-2 border border-surface-3 rounded-md p-3">
+              <div class="font-semibold text-txt mb-1">GitHub Issue から修正PR作成</div>
+              <code class="block bg-surface-1 rounded px-3 py-1.5 text-xs font-mono cursor-pointer hover:bg-accent/10 transition-colors" onclick="navigator.clipboard.writeText(this.textContent);this.style.color='#0a7d5a';setTimeout(()=>this.style.color='',800)">delta-fix --issue 42</code>
+            </div>
+            <div class="bg-surface-2 border border-surface-3 rounded-md p-3">
+              <div class="font-semibold text-txt mb-1">dry-run（修正生成のみ、commit/push しない）</div>
+              <code class="block bg-surface-1 rounded px-3 py-1.5 text-xs font-mono cursor-pointer hover:bg-accent/10 transition-colors" onclick="navigator.clipboard.writeText(this.textContent);this.style.color='#0a7d5a';setTimeout(()=>this.style.color='',800)">delta-fix --dry-run</code>
+            </div>
+          </div>
+          <p class="text-[10px] text-txt-dim mt-3">実行フロー: finding選択 → ブランチ作成 → fix生成 → 適用 → デグレチェック → commit → push → PR → ステータス更新</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Scoring Logic Panel ══ -->
+  <div class="nav-panel hidden flex-col flex-1 min-h-0" id="panel-scoring">
+    <div class="px-6 py-4 shrink-0 border-b border-surface-3">
+      <h2 class="text-lg font-bold text-txt-bright">計算ロジック</h2>
+      <p class="text-[11px] text-txt-dim mt-1">技術的負債や情報量スコアの算出方法を説明。設定ファイルでカスタマイズ可能です。</p>
+    </div>
+    <div class="px-6 py-6 overflow-y-auto flex-1 text-[13px] leading-relaxed text-txt">
+
+      <div class="space-y-6">
+        <!-- 技術的負債 -->
+        <div class="bg-surface-2 border border-surface-3 rounded-lg p-4">
+          <h3 class="font-bold text-accent mb-2">技術的負債 (Technical Debt)</h3>
+          <code class="block bg-surface-1 rounded px-3 py-2 text-xs font-mono mb-3">technical_debt = debt_coefficient × context_score</code>
+          <p class="text-txt-muted text-xs">静的な重さ（負債係数）と文脈（修正の緊急度）を掛け合わせた統合指標。大きいほど優先的に対処すべき。</p>
+        </div>
+
+        <!-- 負債係数 -->
+        <div class="bg-surface-2 border border-surface-3 rounded-lg p-4">
+          <h3 class="font-bold text-debt mb-2">負債係数 (Debt Coefficient) — 0〜1.0</h3>
+          <code class="block bg-surface-1 rounded px-3 py-2 text-xs font-mono mb-3">debt_coefficient = severity × pattern_weight × status</code>
+          <table class="w-full text-xs mt-2">
+            <tr class="border-b border-surface-3"><td class="py-1.5 font-semibold w-28">severity</td><td>high=1.0 / medium=0.6 / low=0.3</td></tr>
+            <tr class="border-b border-surface-3"><td class="py-1.5 font-semibold">pattern_weight</td><td>①=1.0 ②=1.0 ③=0.9 ④=1.0 ⑤=0.8 ⑥=0.9 ⑦=0.3 ⑧=0.6 ⑨=0.5 ⑩=0.4</td></tr>
+            <tr><td class="py-1.5 font-semibold">status</td><td>$status_weights_text</td></tr>
+          </table>
+        </div>
+
+        <!-- 確度 -->
+        <div class="bg-surface-2 border border-surface-3 rounded-lg p-4">
+          <h3 class="font-bold text-link mb-2">確度 (Certainty) — ダブルチェック制</h3>
+          <p class="text-txt-muted text-xs mb-2">検出LLM（1体目）と検証LLM（2体目）の2段階判定で決定。単独の判定では「高確度」にならない。</p>
+          <table class="w-full text-xs mt-2">
+            <tr class="border-b border-surface-3"><td class="py-1.5 font-semibold w-28 text-link">高確度</td><td>検出が high severity かつ 検証が definite + confidence ≥ 0.85</td></tr>
+            <tr class="border-b border-surface-3"><td class="py-1.5 font-semibold text-sev-medium">推定</td><td>検証が definite/probable + confidence ≥ 0.6</td></tr>
+            <tr><td class="py-1.5 font-semibold" style="color:#ffa502">未確認</td><td>上記以外（検証未実施、低confidence、構造的脆弱性）</td></tr>
+          </table>
+        </div>
+
+        <!-- 文脈スコア -->
+        <div class="bg-surface-2 border border-surface-3 rounded-lg p-4">
+          <h3 class="font-bold mb-2" style="color:#60a5fa">文脈スコア (Context Score)</h3>
+          <code class="block bg-surface-1 rounded px-3 py-2 text-xs font-mono mb-3">context_score = churn_weight × fan_out_weight × user_facing × age_multiplier / fix_cost × 100</code>
+          <table class="w-full text-xs mt-2">
+            <tr class="border-b border-surface-3"><td class="py-1.5 font-semibold w-28">churn_weight</td><td>6ヶ月の変更回数 → 0.5〜10.0（hot=月3回で最大）</td></tr>
+            <tr class="border-b border-surface-3"><td class="py-1.5 font-semibold">fan_out_weight</td><td>参照ファイル数 → 1.0〜10.0（5参照で最大）</td></tr>
+            <tr class="border-b border-surface-3"><td class="py-1.5 font-semibold">user_facing</td><td>UI/API影響=1.5× / 内部=1.0×</td></tr>
+            <tr class="border-b border-surface-3"><td class="py-1.5 font-semibold">age_multiplier</td><td>1 + log₂(1 + days/30) × churn_ratio（放置×活発=加速、churn=0なら1.0）</td></tr>
+            <tr><td class="py-1.5 font-semibold">fix_cost</td><td>パターン別修正工数: ④=1.0 ⑦=0.5 ⑩=5.0 等</td></tr>
+          </table>
+        </div>
+
+        <!-- 情報量 -->
+        <div class="bg-surface-2 border border-surface-3 rounded-lg p-4">
+          <h3 class="font-bold mb-2" style="color:#e879f9">情報量（新規性 × 集中度）(Information Score)</h3>
+          <code class="block bg-surface-1 rounded px-3 py-2 text-xs font-mono mb-3">info_score = discovery_value × concentration_factor × 100</code>
+          <table class="w-full text-xs mt-2">
+            <tr class="border-b border-surface-3"><td class="py-1.5 font-semibold w-28">discovery_value</td><td>同パターン件数 n から 1/√n — リポ内で初めてのパターンほど高い（新規性）</td></tr>
+            <tr><td class="py-1.5 font-semibold">concentration_factor</td><td>同ファイルの未解決件数 m から log₂(1+m) — ホットスポットほど高い</td></tr>
+          </table>
+          <p class="text-txt-muted text-xs mt-2">同一リポ内の finding 分布から算出。依存・伝播は文脈スコア（fan_out）側。チーム設定に影響されない。</p>
+          <div class="mt-3 bg-surface-1 rounded-md p-3 text-xs text-txt-muted border border-surface-3">
+            <span class="font-semibold text-txt">用途:</span> 情報量は単体では使わず、<span class="font-semibold" style="color:#0a7d5a">優先度</span>の計算に合流します。技術的負債が「この finding はどれだけ痛いか」を測るのに対し、情報量は「この finding を直すと新たに何が分かるか」を測ります。同じパターンが大量にあるファイルより、初めて見つかったパターンやホットスポットに集中した finding を優先的に修正する効果があります。
+          </div>
+        </div>
+
+        <!-- 優先度 -->
+        <div class="bg-accent/5 border border-accent/20 rounded-lg p-4">
+          <h3 class="font-bold text-accent mb-2">優先度 (Priority)</h3>
+          <code class="block bg-surface-1 rounded px-3 py-2 text-xs font-mono mb-3">priority = info_score + technical_debt + severity_bonus</code>
+          <table class="w-full text-xs mt-2">
+            <tr class="border-b border-surface-3"><td class="py-1.5 font-semibold w-28">info_score</td><td>情報量 — 新規性 × 集中度</td></tr>
+            <tr class="border-b border-surface-3"><td class="py-1.5 font-semibold">technical_debt</td><td>技術的負債 — 負債係数 × 文脈スコア</td></tr>
+            <tr><td class="py-1.5 font-semibold">severity_bonus</td><td>high: +300 / medium: +100 / low: +0</td></tr>
+          </table>
+          <p class="text-txt-muted text-xs mt-2">debt_loop が自動修正の順序を決めるのに使う統合指標。「どれだけ痛いか」と「直すと何が分かるか」の両方を反映。</p>
+        </div>
+
+        <!-- カスタマイズ -->
+        <div class="bg-surface-2 border border-surface-3 rounded-lg p-4">
+          <h3 class="font-bold text-txt-muted mb-2">カスタマイズ</h3>
+          <p class="text-xs text-txt-muted">全ての重みは <code class="bg-surface-1 px-1.5 py-0.5 rounded">.delta-lint/config.json</code> の <code class="bg-surface-1 px-1.5 py-0.5 rounded">scoring</code> セクションで上書きできます。</p>
+          <code class="block bg-surface-1 rounded px-3 py-2 text-xs font-mono mt-2 whitespace-pre">{
+  "scoring": {
+    "severity_weight": { "high": 1.0, "medium": 0.6, "low": 0.3 },
+    "pattern_weight": { "①": 1.0, ... },
+    "churn_thresholds": { "hot": 3.0, "max_weight": 10.0 },
+    "fan_out_thresholds": { "high": 5.0, "max_weight": 10.0 },
+    "fix_cost": { "④": 1.0, "⑩": 5.0, ... }
+  }
+}</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Tooltip -->
+<div class="fixed hidden px-3 py-2 bg-white border border-surface-3 rounded-lg text-[11px] pointer-events-none z-[1000] max-w-[340px] shadow-lg" id="tooltip"></div>
+
+<script>
+const STATUS_META = $status_meta_json;
+const FINDINGS = $findings_json;
+// Compute priority (same formula as debt_loop.py: info_score + roi_score + sev_bonus)
+const _sevBonus = {high: 300, medium: 100, low: 0};
+FINDINGS.forEach(f => { f.priority = (f.info_score || 0) + (f.roi_score || 0) + (_sevBonus[f.severity] || 0); });
+const SUPPRESSIONS = $suppressions_json;
+const TREEMAP_DATA = $treemap_json;
+const COVERAGE_MATRIX = $coverage_matrix_json;
+
+// ── Utility ──
+function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+function mkBtn(label, active) {
+  const b = document.createElement("button");
+  b.className = "px-3 py-1 rounded-full text-xs cursor-pointer border transition-all "
+    + (active
+      ? "bg-link border-link text-white"
+      : "bg-surface-4 border-surface-3 text-txt hover:border-link");
+  b.textContent = label;
+  return b;
+}
+
+// ══════════════════════════════════════
+// Left nav switching
+// ══════════════════════════════════════
+document.querySelectorAll(".nav-item").forEach(item => {
+  item.onclick = () => {
+    document.querySelectorAll(".nav-item").forEach(n => {
+      n.classList.remove("active","text-accent");
+      n.classList.add("text-txt-muted");
+    });
+    document.querySelectorAll(".nav-panel").forEach(p => { p.classList.add("hidden"); p.classList.remove("flex"); });
+    item.classList.add("active","text-accent");
+    item.classList.remove("text-txt-muted");
+    const panel = document.getElementById("panel-" + item.dataset.nav);
+    panel.classList.remove("hidden");
+    panel.classList.add("flex");
+    if (item.dataset.nav === "landmine") setTimeout(renderTreemap, 0);
+  };
+});
+
+document.getElementById("tradeoffs-nav-count").textContent = SUPPRESSIONS.length;
+
+// ══════════════════════════════════════
+// Landmine Map
+// ══════════════════════════════════════
+// Build simple treemap from FINDINGS when no stress-test data
+function buildSimpleTreemapData(findings) {
+  const fileMap = {};
+  findings.forEach(f => {
+    const paths = [f.file];
+    if (f.file_b) paths.push(f.file_b);
+    paths.forEach(fp => {
+      if (!fp) return;
+      if (!fileMap[fp]) fileMap[fp] = { high: 0, medium: 0, low: 0, count: 0, findings: [] };
+      fileMap[fp][f.severity || 'low']++;
+      fileMap[fp].count++;
+      fileMap[fp].findings.push(f);
+    });
+  });
+
+  // Build hierarchy from file paths
+  const root = { name: 'root', children: [] };
+  Object.entries(fileMap).forEach(([fp, info]) => {
+    const parts = fp.split('/');
+    let node = root;
+    for (let i = 0; i < parts.length - 1; i++) {
+      let child = node.children.find(c => c.name === parts[i] && c.children);
+      if (!child) {
+        child = { name: parts[i], children: [] };
+        node.children.push(child);
+      }
+      node = child;
+    }
+    const riskScore = info.high * 3 + info.medium * 1.5 + info.low * 0.5;
+    const maxSev = info.high > 0 ? 'high' : info.medium > 0 ? 'medium' : 'low';
+    // Build findings_sample for detail view
+    const findingsSample = info.findings.slice(0, 5).map(f => ({
+      pattern: f.title || f.category || '不明',
+      severity: f.severity || 'low',
+      contradiction: f.title || '',
+      description: f.description || '',
+      location: { file_a: f.file, file_b: f.file_b || '' }
+    }));
+    node.children.push({
+      name: parts[parts.length - 1],
+      full_path: fp,
+      risk_score: riskScore,
+      hit_count: info.count,
+      findings_count: info.count,
+      max_severity: maxSev,
+      findings_sample: findingsSample
+    });
+  });
+
+  // Collapse single-child intermediate nodes
+  function collapse(node) {
+    if (!node.children) return node;
+    node.children = node.children.map(collapse);
+    if (node.children.length === 1 && node.children[0].children && node.name !== 'root') {
+      const child = node.children[0];
+      return { name: node.name + '/' + child.name, children: child.children };
+    }
+    return node;
+  }
+  return collapse(root);
+}
+
+let effectiveTreemapData = TREEMAP_DATA;
+const isSimpleMode = !TREEMAP_DATA;
+if (isSimpleMode) {
+  effectiveTreemapData = buildSimpleTreemapData(FINDINGS);
+  document.getElementById("lm-simple-banner").classList.remove("hidden");
+  document.getElementById("lm-simple-banner").classList.add("flex");
+}
+
+{
+  const allFiles = (function flatLeaves(n) { return n.children ? n.children.flatMap(flatLeaves) : [n]; })(effectiveTreemapData).filter(d => d.full_path);
+  allFiles.sort((a,b) => (b.risk_score||0) - (a.risk_score||0));
+  const maxRisk = Math.max(...allFiles.map(d => d.risk_score||0), 0.001);
+
+  function riskColor(s) {
+    if (s <= 0) return '#d1f5e4';
+    const r = s / maxRisk;
+    if (r <= 0.2) return '#6ecba0';
+    if (r <= 0.4) return '#f0c95c';
+    if (r <= 0.6) return '#e8a44a';
+    if (r <= 0.8) return '#e07050';
+    return '#cd3d64';
+  }
+  function sevClass(s) {
+    const r = s / maxRisk;
+    return r > 0.6 ? 'high' : r > 0.25 ? 'medium' : 'low';
+  }
+
+  const _catMap = {};
+  (function buildCatMap(node, parentCat) {
+    const cat = node.category || parentCat || '';
+    if (node.children) node.children.forEach(c => buildCatMap(c, node.category || parentCat));
+    else if (node.full_path) _catMap[node.full_path] = cat;
+  })(effectiveTreemapData, '');
+  function fileCategory(path) { return _catMap[path] || ''; }
+
+  const tmWrap = document.getElementById('treemap-wrap');
+  let selectedCell = null;
+
+  window.renderTreemap = function() {
+    tmWrap.innerHTML = '';
+    const W = tmWrap.clientWidth, H = tmWrap.clientHeight;
+    if (W < 10 || H < 10) return;
+
+    const root = d3.hierarchy(effectiveTreemapData)
+      .sum(d => {
+        const risk = d.risk_score || 0;
+        return risk > 0 ? Math.max(60, Math.round(risk * 1000)) : 1;
+      })
+      .sort((a,b) => (b.value||0) - (a.value||0));
+
+    d3.treemap().size([W, H]).padding(1.5).paddingTop(15).round(true)(root);
+
+    if (root.children) root.children.forEach(g => {
+      const lbl = document.createElement('div');
+      lbl.className = 'tm-group-label';
+      lbl.style.left = g.x0 + 'px';
+      lbl.style.top = g.y0 + 'px';
+      lbl.style.width = (g.x1 - g.x0) + 'px';
+      const cat = g.data.category;
+      lbl.textContent = cat ? g.data.name + ' \u2014 ' + cat : g.data.name;
+      tmWrap.appendChild(lbl);
+    });
+
+    const tooltip = document.getElementById('tooltip');
+    root.leaves().forEach(leaf => {
+      const d = leaf.data;
+      const w = leaf.x1 - leaf.x0, h = leaf.y1 - leaf.y0;
+      if (w < 2 || h < 2) return;
+
+      const el = document.createElement('div');
+      el.className = 'tm-cell';
+      el.dataset.path = d.full_path || d.name;
+      el.style.cssText = 'left:'+leaf.x0+'px;top:'+leaf.y0+'px;width:'+w+'px;height:'+h+'px;background:'+riskColor(d.risk_score||0)+';';
+
+      if (w > 36 && h > 16) {
+        const lbl = document.createElement('div');
+        lbl.className = 'tm-label';
+        lbl.textContent = d.name;
+        el.appendChild(lbl);
+      }
+      if (w > 36 && h > 28 && (d.hit_count||0) > 0) {
+        const hits = document.createElement('div');
+        hits.className = 'tm-hits';
+        hits.textContent = (d.hit_count||0) + ' 件';
+        el.appendChild(hits);
+      }
+
+      el.addEventListener('mouseenter', e => {
+        tooltip.innerHTML = '<div class="font-semibold text-accent mb-1 break-all text-[10.5px]">'+(d.full_path||d.name)+'</div>'
+          +'<div class="flex justify-between gap-3.5 my-px text-[10.5px]"><span class="text-txt-muted">リスク</span><span class="text-txt-bright font-medium">'+(d.risk_score||0).toFixed(3)+'</span></div>'
+          +'<div class="flex justify-between gap-3.5 my-px text-[10.5px]"><span class="text-txt-muted">検出回数</span><span class="text-txt-bright font-medium">'+(d.hit_count||0)+'</span></div>'
+          +'<div class="flex justify-between gap-3.5 my-px text-[10.5px]"><span class="text-txt-muted">深刻度</span><span class="text-txt-bright font-medium">'+(d.max_severity||'none')+'</span></div>'
+          +'<div class="flex justify-between gap-3.5 my-px text-[10.5px]"><span class="text-txt-muted">矛盾数</span><span class="text-txt-bright font-medium">'+(d.findings_count||0)+'</span></div>';
+        tooltip.style.display = 'block';
+      });
+      el.addEventListener('mousemove', e => {
+        tooltip.style.left = (e.clientX+14)+'px';
+        tooltip.style.top = (e.clientY+14)+'px';
+      });
+      el.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+      el.addEventListener('click', () => { selectFile(d.full_path || d.name); });
+
+      tmWrap.appendChild(el);
+    });
+  };
+
+  // Pattern chart
+  try { (function() {
+    const patternColors = {'\u2460':'#4dabf7','\u2461':'#ffa502','\u2462':'#ff6b81','\u2463':'#00d97e','\u2464':'#a855f7','\u2465':'#f472b6'};
+    const patternNames = {'\u2460':'デフォルト値の非対称','\u2461':'意味の不一致','\u2462':'仕様からの逸脱','\u2463':'ガード未伝播','\u2464':'設定値の相互干渉','\u2465':'ライフサイクル順序'};
+    const counts = {};
+    allFiles.forEach(d => { (d.patterns || []).forEach(p => { const key = p.trim().charAt(0); counts[key] = (counts[key]||0)+1; }); });
+    const chart = document.getElementById('pattern-chart');
+    const legend = document.getElementById('pattern-legend');
+    const entries = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+    const total = entries.reduce((s,e) => s+e[1], 0) || 1;
+    if (!entries.length) { chart.innerHTML = '<div class="flex items-center justify-center w-full text-txt-dim text-[10px]">パターンデータなし</div>'; return; }
+    entries.forEach(([key, count]) => {
+      const seg = document.createElement('div');
+      seg.className = 'pb-segment';
+      seg.style.flex = count;
+      seg.style.background = patternColors[key] || '#4a5568';
+      seg.title = (patternNames[key]||key)+': '+count;
+      if (count/total > 0.08) { const lbl = document.createElement('div'); lbl.className = 'pb-seg-label'; lbl.textContent = key+' '+count; seg.appendChild(lbl); }
+      chart.appendChild(seg);
+    });
+    entries.slice(0,6).forEach(([key]) => {
+      const item = document.createElement('span');
+      item.innerHTML = '<span class="inline-block w-2 h-2 rounded-sm mr-1 align-middle" style="background:'+(patternColors[key]||'#4a5568')+'"></span>'+(patternNames[key]||key);
+      legend.appendChild(item);
+    });
+  })(); } catch(e) { console.warn('Pattern chart error:', e); }
+
+  // Ranking
+  const paneRanking = document.getElementById('lm-pane-ranking');
+  const paneDetail = document.getElementById('lm-pane-detail');
+  const detailContent = document.getElementById('lm-detail-content');
+
+  function buildRanking() {
+    const ranked = allFiles.filter(d => (d.risk_score||0) > 0);
+    if (!ranked.length) { paneRanking.innerHTML = '<div class="p-5 text-txt-dim text-center text-[11px]">リスクのあるファイルはありません</div>'; return; }
+    let html = '';
+    ranked.forEach((d, i) => {
+      const score = d.risk_score || 0;
+      const pct = Math.round((score/maxRisk)*100);
+      const sc = sevClass(score);
+      const barColor = sc==='high'?'#cd3d64':sc==='medium'?'#c97a20':'#0a7d5a';
+      const fp = d.full_path || d.name;
+      const lastSlash = fp.lastIndexOf('/');
+      const dir = lastSlash >= 0 ? fp.substring(0,lastSlash+1) : '';
+      const file = lastSlash >= 0 ? fp.substring(lastSlash+1) : fp;
+      const cat = fileCategory(fp);
+      const numColor = i < 3 ? 'text-sev-high' : i < 6 ? 'text-[#ffa502]' : 'text-txt-dim';
+      html += '<div class="rank-item flex items-center gap-2 px-3 py-2 border-b border-white/[.025] cursor-pointer hover:bg-accent/[.04] transition-colors" data-path="'+fp+'">'
+        +'<div class="text-xs font-bold min-w-[20px] text-right '+numColor+'">'+(i+1)+'</div>'
+        +'<div class="flex-1 min-w-0">'
+        +'<div class="text-[10.5px] text-txt-muted/70 whitespace-nowrap overflow-hidden text-ellipsis" title="'+fp+'"><span class="text-txt-dim">'+dir+'</span>'+file+'</div>'
+        +'<div class="flex gap-1.5 mt-0.5 text-[9.5px] text-txt-dim">'
+        +'<span class="font-bold px-1 rounded-sm text-[9.5px] '+(sc==='high'?'bg-sev-high/10 text-sev-high':sc==='medium'?'bg-[#ffa502]/10 text-[#ffa502]':'bg-accent/10 text-accent')+'">'+score.toFixed(3)+'</span>'
+        +(cat?'<span class="text-[9px] px-1 rounded-sm bg-link/10 text-link whitespace-nowrap">'+cat+'</span>':'')
+        +'<span>'+(d.hit_count||0)+' 件</span>'
+        +'</div></div>'
+        +'<div class="w-10 h-[3px] bg-surface-2 rounded-full overflow-hidden shrink-0"><div class="h-full rounded-full" style="width:'+pct+'%;background:'+barColor+'"></div></div>'
+        +'</div>';
+    });
+    paneRanking.innerHTML = html;
+    paneRanking.querySelectorAll('.rank-item').forEach(el => {
+      el.addEventListener('click', () => selectFile(el.dataset.path));
+    });
+  }
+  buildRanking();
+
+  // Panel tab switching
+  document.querySelectorAll('.lm-panel-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.lm-panel-tab').forEach(t => {
+        t.classList.remove('active','text-accent','!border-accent');
+        t.classList.add('text-txt-dim','border-transparent');
+      });
+      tab.classList.add('active','text-accent','!border-accent');
+      tab.classList.remove('text-txt-dim','border-transparent');
+      const name = tab.dataset.lmTab;
+      paneRanking.classList.toggle('hidden', name!=='ranking');
+      paneRanking.classList.toggle('active', name==='ranking');
+      paneDetail.classList.toggle('hidden', name!=='detail');
+      paneDetail.classList.toggle('active', name==='detail');
+    });
+  });
+
+  function switchToDetail() {
+    document.querySelectorAll('.lm-panel-tab').forEach(t => {
+      const isDetail = t.dataset.lmTab==='detail';
+      t.classList.toggle('active', isDetail);
+      t.classList.toggle('text-accent', isDetail);
+      t.classList.toggle('!border-accent', isDetail);
+      t.classList.toggle('text-txt-dim', !isDetail);
+      t.classList.toggle('border-transparent', !isDetail);
+    });
+    paneRanking.classList.add('hidden');
+    paneRanking.classList.remove('active');
+    paneDetail.classList.remove('hidden');
+    paneDetail.classList.add('active');
+  }
+
+  function selectFile(path) {
+    if (selectedCell) selectedCell.classList.remove('selected');
+    const cell = tmWrap.querySelector('.tm-cell[data-path="'+CSS.escape(path)+'"]');
+    if (cell) { cell.classList.add('selected'); selectedCell = cell; }
+    document.querySelectorAll('.rank-item').forEach(el => {
+      el.classList.toggle('bg-accent/[.08]', el.dataset.path===path);
+      el.classList.toggle('border-l-2', el.dataset.path===path);
+      el.classList.toggle('border-accent', el.dataset.path===path);
+    });
+    const fileData = allFiles.find(d => (d.full_path||d.name)===path);
+    if (fileData) showLmDetail(fileData);
+  }
+  window.selectFile = selectFile;
+
+  function showLmDetail(d) {
+    switchToDetail();
+    let html = '<button class="bg-transparent border border-surface-3 text-txt-dim px-2 py-1 rounded text-[10px] cursor-pointer hover:text-accent hover:border-accent/30 mb-2.5" id="lm-detail-back-btn">戻る</button>';
+    const fp = d.full_path || d.name;
+    const detailCat = fileCategory(fp);
+    html += '<div class="text-xs font-semibold text-txt-bright break-all mb-2 leading-relaxed">'+fp+'</div>';
+    if (detailCat) html += '<div class="mb-2"><span class="text-[10px] px-2 py-0.5 rounded-sm bg-link/10 text-link">'+detailCat+'</span></div>';
+    html += '<div class="flex gap-1.5 mb-2.5 flex-wrap">';
+    html += '<span class="text-[10px] px-2 py-0.5 rounded bg-surface-2 border border-surface-3 text-txt-muted">リスク <b class="text-txt-bright">'+(d.risk_score||0).toFixed(3)+'</b></span>';
+    html += '<span class="text-[10px] px-2 py-0.5 rounded bg-surface-2 border border-surface-3 text-txt-muted">検出回数 <b class="text-txt-bright">'+(d.hit_count||0)+'</b></span>';
+    html += '<span class="text-[10px] px-2 py-0.5 rounded bg-surface-2 border border-surface-3 text-txt-muted">深刻度 <b class="text-txt-bright">'+(d.max_severity||'none')+'</b></span>';
+    html += '<span class="text-[10px] px-2 py-0.5 rounded bg-surface-2 border border-surface-3 text-txt-muted">矛盾数 <b class="text-txt-bright">'+(d.findings_count||0)+'</b></span>';
+    html += '</div>';
+
+    if (d.confirmed_bugs && d.confirmed_bugs.length > 0) {
+      d.confirmed_bugs.forEach(b => { html += '<div class="inline-block px-2 py-0.5 bg-sev-high/10 text-sev-high rounded text-[10px] font-semibold mb-1.5">確認済み: '+(b.issue||'')+' ('+(b.repo||'')+')</div> '; });
+    }
+    if (d.patterns && d.patterns.length > 0) {
+      const uniq = [...new Set(d.patterns)];
+      html += '<div class="text-[10px] uppercase tracking-wider text-txt-dim mt-3 mb-1.5 font-semibold">検出パターン</div>';
+      html += '<div class="flex gap-1 flex-wrap mb-1">';
+      uniq.forEach(p => { html += '<span class="text-[10px] px-1.5 py-0.5 bg-surface-2 border border-surface-3 rounded-sm text-[#ffa502]">'+p+'</span>'; });
+      html += '</div>';
+    }
+
+    const findings = d.findings_sample || [];
+    if (findings.length > 0) {
+      html += '<div class="text-[10px] uppercase tracking-wider text-txt-dim mt-3 mb-1.5 font-semibold">検出された矛盾</div>';
+      findings.forEach(f => {
+        const sev = f.severity || 'low';
+        const sevBg = sev==='high'?'bg-sev-high/10 text-sev-high':sev==='medium'?'bg-[#ffa502]/10 text-[#ffa502]':'bg-accent/10 text-accent';
+        html += '<div class="bg-surface-2 border border-surface-3 rounded-md p-2.5 mb-1.5"><div class="flex items-center gap-1.5 mb-1">';
+        html += '<span class="text-[10.5px] font-semibold text-[#ffa502]">'+(f.pattern||'不明')+'</span>';
+        html += '<span class="text-[9px] font-bold px-1.5 py-px rounded-sm '+sevBg+'">'+sev+'</span>';
+        if (f.bug_class) html += '<span class="text-[9px] font-bold px-1.5 py-px rounded-sm bg-sev-high/10 text-[#ff6b81]">'+f.bug_class+'</span>';
+        html += '</div>';
+        const desc = f.contradiction || f.description || f.summary || '';
+        if (desc) html += '<div class="text-[10.5px] text-txt-dim leading-relaxed mt-1">'+desc+'</div>';
+        const impact = f.user_impact || '';
+        if (impact) html += '<div class="text-[10.5px] text-txt-muted mt-1.5 p-1.5 bg-sev-high/[.04] rounded border-l-2 border-sev-high"><div class="text-[9px] font-semibold text-[#ff6b81] uppercase tracking-wider">影響</div>'+impact+'</div>';
+        const loc = f.location || {};
+        if (loc.file_a || loc.file_b) {
+          html += '<div class="mt-1.5 text-[10px] text-txt-dim">';
+          if (loc.file_a) html += '<div><code class="bg-surface px-1 py-px rounded text-[9.5px] text-txt-muted">'+loc.file_a+'</code> '+(loc.detail_a||'')+'</div>';
+          if (loc.file_b) html += '<div><code class="bg-surface px-1 py-px rounded text-[9.5px] text-txt-muted">'+loc.file_b+'</code> '+(loc.detail_b||'')+'</div>';
+          html += '</div>';
+        }
+        if (f.modification_desc) html += '<div class="mt-1.5 pt-1.5 border-t border-surface-3 text-[10px] text-txt-dim italic">トリガー: '+f.modification_desc+'</div>';
+        html += '</div>';
+      });
+      if ((d.findings_count||0) > findings.length) {
+        html += '<div class="text-[10px] text-txt-dim text-center py-2">'+d.findings_count+' 件中 '+findings.length+' 件表示</div>';
+      }
+    } else {
+      html += '<p class="text-txt-dim mt-4 text-[11px]">このファイルに検出結果はありません。</p>';
+    }
+
+    detailContent.innerHTML = html;
+    const backBtn = document.getElementById('lm-detail-back-btn');
+    if (backBtn) backBtn.addEventListener('click', () => { document.querySelector('.lm-panel-tab[data-lm-tab="ranking"]').click(); });
+  }
+}
+
+// ══════════════════════════════════════
+// Findings Panel
+// ══════════════════════════════════════
+let showClosed = false;  // GitHub-style: Open by default
+let activeKindTab = "scan"; // "scan" | "stress" | "security"
+let sortCol = "severity";
+let sortAsc = false;
+const sevOrder = {high: 0, medium: 1, low: 2};
+const CLOSED_STATUSES = new Set(Object.entries(STATUS_META).filter(([,v]) => v.closed).map(([k]) => k));
+
+// STATUS_META から Tailwind クラスを導出
+function _statusCssClass(color) {
+  if (color.startsWith('#')) return 'bg-['+color+']/15 text-['+color+']';
+  return 'bg-'+color+'/15 text-'+color;
+}
+const STATUS_COLORS = Object.fromEntries(Object.entries(STATUS_META).map(([k,v]) => [k, _statusCssClass(v.color)]));
+const STATUS_LABELS = Object.fromEntries(Object.entries(STATUS_META).map(([k,v]) => [k, v.label]));
+function getKind(f) {
+  // Determine by lens (scan method): default → "scan", stress → "stress", security → "security"
+  // Fallback: use found_by for backward compatibility
+  let lens = f.lens;
+  if (!lens) {
+    if (f.found_by === 'stress-test') lens = 'stress';
+    else if (f.found_by === 'security' || (f.tags || []).includes('security')) lens = 'security';
+    else lens = 'default';
+  }
+  if (lens === 'stress') return 'stress';
+  if (lens === 'security') return 'security';
+  return 'scan'; // default lens
+}
+
+// Open/Closed toggle (GitHub-style)
+(function initOpenClosedToggle() {
+  const el = document.getElementById("open-closed-toggle");
+  const openCount = FINDINGS.filter(f => !CLOSED_STATUSES.has(f.status || "found")).length;
+  const closedCount = FINDINGS.filter(f => CLOSED_STATUSES.has(f.status || "found")).length;
+
+  const openBtn = document.createElement("button");
+  openBtn.className = "px-3 py-1.5 text-xs font-semibold bg-link text-white transition-colors";
+  openBtn.innerHTML = '<svg class="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="2"/></svg>' + openCount + ' Open';
+
+  const closedBtn = document.createElement("button");
+  closedBtn.className = "px-3 py-1.5 text-xs font-semibold bg-surface-2 text-txt-muted transition-colors hover:text-txt";
+  closedBtn.innerHTML = '<svg class="w-3.5 h-3.5 inline-block mr-1 -mt-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' + closedCount + ' Closed';
+
+  openBtn.onclick = () => {
+    showClosed = false;
+    openBtn.className = "px-3 py-1.5 text-xs font-semibold bg-link text-white transition-colors";
+    closedBtn.className = "px-3 py-1.5 text-xs font-semibold bg-surface-2 text-txt-muted transition-colors hover:text-txt";
+    render();
+  };
+  closedBtn.onclick = () => {
+    showClosed = true;
+    closedBtn.className = "px-3 py-1.5 text-xs font-semibold bg-link text-white transition-colors";
+    openBtn.className = "px-3 py-1.5 text-xs font-semibold bg-surface-2 text-txt-muted transition-colors hover:text-txt";
+    render();
+  };
+  el.appendChild(openBtn);
+  el.appendChild(closedBtn);
+})();
+
+// Kind tabs removed — all findings shown in single list
+
+
+document.querySelectorAll("#findings-table thead th").forEach(th => {
+  th.onclick = () => {
+    const col = th.dataset.col;
+    if (sortCol === col) sortAsc = !sortAsc;
+    else { sortCol = col; sortAsc = true; }
+    document.querySelectorAll("#findings-table thead th").forEach(t => {
+      t.classList.remove("sorted");
+      const arrow = t.querySelector(".sort-arrow");
+      if (arrow) { arrow.classList.remove("!opacity-100","!text-link"); arrow.classList.add("opacity-40"); }
+    });
+    th.classList.add("sorted");
+    const arrow = th.querySelector(".sort-arrow");
+    if (arrow) { arrow.classList.remove("opacity-40"); arrow.classList.add("!opacity-100","!text-link"); arrow.innerHTML = sortAsc ? "&#9650;" : "&#9660;"; }
+    render();
+  };
+});
+
+function isConfirmed(f) { return f.status === 'confirmed'; }
+function isInvestigating(f) {
+  return !isConfirmed(f) && !CLOSED_STATUSES.has(f.status || "found");
+}
+
+function render() {
+  let data = FINDINGS.filter(f => {
+    const status = f.status || "found";
+    const isClosed = CLOSED_STATUSES.has(status);
+    if (showClosed !== isClosed) return false;
+    return true;
+  });
+  data.sort((a, b) => {
+    let va = a[sortCol] || "", vb = b[sortCol] || "";
+    if (sortCol === "severity") { va = sevOrder[va] ?? 9; vb = sevOrder[vb] ?? 9; }
+    if (sortCol === "debt_score" || sortCol === "churn" || sortCol === "fan_out" || sortCol === "roi_score" || sortCol === "priority") { va = parseFloat(va) || 0; vb = parseFloat(vb) || 0; }
+    if (sortCol === "category") {
+      const statusRank = {confirmed:0, suspicious:0.5, merged:1, submitted:2, false_positive:5};
+      const certRank = {definite:0, probable:1, uncertain:2};
+      const getRank = f => {
+        const st = f.status || 'found';
+        if (st in statusRank) return statusRank[st];
+        const cert = (f.taxonomies||{}).certainty || 'uncertain';
+        return 3 + (certRank[cert] ?? 2);
+      };
+      va = getRank(a); vb = getRank(b);
+    }
+    if (va < vb) return sortAsc ? -1 : 1;
+    if (va > vb) return sortAsc ? 1 : -1;
+    return 0;
+  });
+  const tbody = document.getElementById("tbody");
+  const empty = document.getElementById("empty");
+  if (!data.length) { tbody.innerHTML = ""; empty.classList.remove("hidden"); return; }
+  empty.classList.add("hidden");
+  currentDetailData = data;
+  tbody.innerHTML = data.map((f, idx) => {
+    const sev = f.severity || "low";
+    const status = f.status || "found";
+    const titleText = esc(f.title || "(no title)");
+    const loc = f.file + (f.line ? ":" + f.line : "");
+    const shortFile = loc.split("/").slice(-2).join("/");
+    const tx = f.taxonomies || {};
+    const certainty = tx.certainty || '';
+    const cat = tx.category || f.category || '';
+    let catBadge = '';
+    // Status badge (human/triage judgment) takes priority over certainty (LLM judgment)
+    if (status !== 'found' && STATUS_LABELS[status]) {
+      const cls = STATUS_COLORS[status] || '';
+      const extra = status === 'false_positive' ? ' line-through' : '';
+      catBadge += '<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold '+cls+extra+'">'+STATUS_LABELS[status]+'</span>';
+    } else if (certainty === 'definite') catBadge += '<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold bg-link/15 text-link">高確度</span>';
+    else if (certainty === 'probable') catBadge += '<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold bg-sev-medium/15 text-sev-medium">推定</span>';
+    else catBadge += '<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#ffa502]/12 text-[#ffa502]">未確認</span>';
+    const sevBg = sev==='high'?'bg-sev-high/15 text-sev-high':sev==='medium'?'bg-sev-medium/15 text-sev-medium':'bg-sev-low/15 text-sev-low';
+    const roiColor = f.roi_score>=500?'text-sev-high':f.roi_score>=100?'text-sev-medium':'text-txt-muted';
+    const fid = esc(f.id || '');
+    const fidShort = fid.includes('-') ? fid.slice(fid.lastIndexOf('-')+1) : fid.slice(0,12);
+    return '<tr class="border-b border-surface-3 hover:bg-surface-2 transition-colors cursor-pointer" data-idx="'+idx+'" onclick="showDetail('+idx+')">'
+      +'<td class="px-3 py-2.5 align-top font-mono text-[10px] text-txt-dim cursor-pointer hover:text-link transition-colors" title="'+fid+'" onclick="event.stopPropagation();navigator.clipboard.writeText(\''+fid+'\');const _t=this;_t.dataset.orig=_t.textContent;_t.textContent=\'Copied!\';_t.style.color=\'#0a7d5a\';setTimeout(()=>{_t.textContent=_t.dataset.orig;_t.style.color=\'\'},800)">'+fidShort+'</td>'
+      +'<td class="px-3 py-2.5 align-top">'+catBadge+'</td>'
+      +'<td class="px-3 py-2.5 align-top"><span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase '+sevBg+'">'+sev+'</span></td>'
+      +'<td class="px-3 py-2.5 align-top max-w-[400px] truncate" title="'+esc(f.title||'')+'">'+titleText+'</td>'
+      +'<td class="px-3 py-2.5 align-top font-mono text-xs text-file" title="'+esc(loc)+'">'+esc(shortFile)+'</td>'
+      +'<td class="px-3 py-2.5 align-top font-mono text-right font-bold '+roiColor+'" title="churn='+((f.churn||0))+ ' fan_out='+(f.fan_out||0)+' user_facing='+(f.user_facing_weight||1.0)+'x age='+(f.age_multiplier||1.0)+'x">'+(f.roi_score!=null?f.roi_score.toFixed(0):'-')+'</td>'
+      +'<td class="px-3 py-2.5 align-top font-mono text-right font-bold '+(f.priority>=500?'text-accent':f.priority>=200?'text-sev-medium':'text-txt-muted')+'" title="info_score='+(f.info_score||0)+' + roi_score='+(f.roi_score||0)+' + sev_bonus">'+f.priority.toFixed(0)+'</td>'
+      +'</tr>';
+  }).join("");
+}
+
+// ── Side panel detail view ──
+let currentDetailData = null;
+let _openDetailIdx = -1;
+function showDetail(idx) {
+  const tbody = document.getElementById("tbody");
+  const rows = tbody.querySelectorAll("tr");
+  const side = document.getElementById("findings-side");
+
+  // Toggle: same row clicked again → close
+  if (_openDetailIdx === idx && side.classList.contains("open")) {
+    closeDetail();
+    _openDetailIdx = -1;
+    return;
+  }
+  _openDetailIdx = idx;
+
+  rows.forEach(r => r.classList.remove("!bg-[#eef2ff]"));
+  if (rows[idx]) rows[idx].classList.add("!bg-[#eef2ff]");
+
+  const f = currentDetailData[idx];
+  if (!f) return;
+
+  const inner = document.getElementById("side-inner");
+  side.classList.add("open");
+
+  const loc = f.file + (f.line ? ":" + f.line : "");
+  const locB = f.location ? (f.location.file_b || "") : "";
+  const githubLink = f.github_url ? '<a href="'+esc(f.github_url)+'" target="_blank" class="text-link text-[11px] no-underline hover:underline">GitHub &rarr;</a>' : '';
+
+  const churnColor = f.churn>10?'text-sev-high':f.churn>3?'text-sev-medium':'text-txt-muted';
+  const fanColor = f.fan_out>5?'text-sev-high':f.fan_out>2?'text-sev-medium':'text-txt-muted';
+  const roiColor = f.roi_score>=500?'text-sev-high':f.roi_score>=100?'text-sev-medium':'text-txt-muted';
+
+  const sevBg = (f.severity||'low')==='high'?'bg-sev-high/15 text-sev-high':(f.severity||'low')==='medium'?'bg-sev-medium/15 text-sev-medium':'bg-sev-low/15 text-sev-low';
+  const statusCls = STATUS_COLORS[f.status||'found'] || 'bg-link/15 text-link';
+
+  inner.innerHTML = ''
+    +'<button class="float-right bg-transparent border border-surface-3 text-txt-dim px-2 py-1 rounded text-[10px] cursor-pointer hover:text-sev-high hover:border-sev-high/30" onclick="closeDetail()">&times; 閉じる</button>'
+    +'<div class="flex flex-wrap gap-1.5 mb-2">'
+    +'<span class="text-[10px] px-2 py-0.5 rounded bg-surface-2 border border-surface-3 text-txt-muted font-bold">'+esc(f.id||'')+'</span>'
+    +(f.pattern?'<span class="text-[10px] px-2 py-0.5 rounded bg-surface-2 border border-surface-3 text-pat">'+esc(f.pattern)+'</span>':'')
+    +'<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold '+sevBg+'">'+(f.severity||'low')+'</span>'
+    +'<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-medium '+statusCls+'">'+(f.status||'found')+'</span>'
+    +githubLink
+    +'</div>'
+
+    +'<div class="text-xs font-mono text-file break-all leading-relaxed px-1">'+esc(loc)
+    +(locB?'\n'+esc(locB):'')
+    +'</div>'
+
+    +'<div class="grid grid-cols-5 gap-1.5 mt-3">'
+    +'<div class="bg-accent/10 border border-accent/30 rounded-md p-2 text-center"><div class="text-lg font-bold font-mono '+(f.priority>=500?'text-accent':f.priority>=200?'text-sev-medium':'text-txt-muted')+'">'+f.priority.toFixed(0)+'</div><div class="text-[9px] text-txt-muted">優先度</div></div>'
+    +'<div class="bg-surface-2 border border-surface-3 rounded-md p-2 text-center"><div class="text-lg font-bold font-mono '+roiColor+'">'+(f.roi_score!=null?f.roi_score.toFixed(0):'-')+'</div><div class="text-[9px] text-txt-muted">技術的負債</div></div>'
+    +'<div class="bg-surface-2 border border-surface-3 rounded-md p-2 text-center"><div class="text-lg font-bold font-mono text-txt-muted">'+(f.debt_coefficient!=null?f.debt_coefficient.toFixed(2):'-')+'</div><div class="text-[9px] text-txt-muted">負債係数</div></div>'
+    +'<div class="bg-surface-2 border border-surface-3 rounded-md p-2 text-center"><div class="text-lg font-bold font-mono text-txt-muted">'+(f.context_score!=null?f.context_score.toFixed(0):'-')+'</div><div class="text-[9px] text-txt-muted">文脈スコア</div></div>'
+    +'<div class="bg-surface-2 border border-surface-3 rounded-md p-2 text-center"><div class="text-lg font-bold font-mono" style="color:#e879f9">'+(f.info_score!=null?f.info_score.toFixed(0):'-')+'</div><div class="text-[9px] text-txt-muted">情報量</div></div>'
+    +'</div>'
+    +'<div class="grid grid-cols-5 gap-1 mt-1">'
+    +'<div class="bg-surface-2 rounded px-1 py-0.5 text-center"><div class="text-[11px] font-bold font-mono '+churnColor+'">'+(f.churn||0)+'</div><div class="text-[8px] text-txt-dim">churn</div></div>'
+    +'<div class="bg-surface-2 rounded px-1 py-0.5 text-center"><div class="text-[11px] font-bold font-mono '+fanColor+'">'+(f.fan_out||0)+'</div><div class="text-[8px] text-txt-dim">fan_out</div></div>'
+    +'<div class="bg-surface-2 rounded px-1 py-0.5 text-center"><div class="text-[11px] font-bold font-mono '+(f.user_facing_weight>1?'text-sev-high':'text-txt-muted')+'">'+(f.user_facing_weight||1.0)+'x</div><div class="text-[8px] text-txt-dim">UI影響</div></div>'
+    +'<div class="bg-surface-2 rounded px-1 py-0.5 text-center"><div class="text-[11px] font-bold font-mono '+(f.age_multiplier>1.5?'text-sev-high':f.age_multiplier>1.1?'text-sev-medium':'text-txt-muted')+'">'+(f.age_multiplier||1.0)+'x</div><div class="text-[8px] text-txt-dim">経年</div></div>'
+    +'<div class="bg-surface-2 rounded px-1 py-0.5 text-center"><div class="text-[11px] font-bold font-mono text-txt-muted">'+(f.found_at||'-').slice(5)+'</div><div class="text-[8px] text-txt-dim">検出日</div></div>'
+    +'</div>'
+
+    +'<div class="text-[10px] uppercase tracking-wider text-txt-dim mt-3 mb-1 font-semibold">内容</div>'
+    +'<div class="text-xs text-txt leading-relaxed whitespace-pre-wrap break-words">'+esc(f.title||'(no title)')+'</div>'
+
+    +(f.contradiction?'<div class="text-[10px] uppercase tracking-wider text-txt-dim mt-3 mb-1 font-semibold">矛盾の内容</div><div class="text-xs text-txt leading-relaxed whitespace-pre-wrap break-words">'+esc(f.contradiction)+'</div>':'')
+    +(f.description?'<div class="text-[10px] uppercase tracking-wider text-txt-dim mt-2 mb-1 font-semibold">詳細</div><div class="text-xs text-txt leading-relaxed whitespace-pre-wrap break-words">'+esc(f.description)+'</div>':'')
+    +(f.impact?'<div class="text-[10px] uppercase tracking-wider text-txt-dim mt-2 mb-1 font-semibold">影響</div><div class="text-xs text-txt leading-relaxed whitespace-pre-wrap break-words">'+esc(f.impact)+'</div>':'')
+    +(f.internal_evidence?'<div class="text-[10px] uppercase tracking-wider text-txt-dim mt-2 mb-1 font-semibold">内部証拠</div><div class="text-[11px] text-txt-muted leading-relaxed whitespace-pre-wrap break-words">'+esc(f.internal_evidence)+'</div>':'')
+  ;
+}
+
+function closeDetail() {
+  document.getElementById("findings-side").classList.remove("open");
+  document.querySelectorAll("#tbody tr").forEach(r => r.classList.remove("!bg-[#eef2ff]"));
+}
+
+render();
+
+// ══════════════════════════════════════
+// Trade-offs Panel
+// ══════════════════════════════════════
+let activeWhyTypes = new Set();
+
+(function initTradeoffs() {
+  if (!SUPPRESSIONS.length) { document.getElementById("tradeoff-empty").classList.remove("hidden"); return; }
+  const byType = {domain:0, technical:0, preference:0};
+  let approvedCount = 0;
+  SUPPRESSIONS.forEach(s => { const t = s.why_type||"technical"; byType[t]=(byType[t]||0)+1; if (s.approved_by) approvedCount++; });
+  const pendingCount = SUPPRESSIONS.length - approvedCount;
+  const summaryEl = document.getElementById("tradeoff-summary");
+  const cardBase = "bg-surface-2 border border-surface-3 rounded-lg px-5 py-3 min-w-[120px] text-center";
+  summaryEl.innerHTML =
+    '<div class="'+cardBase+'"><div class="text-2xl font-bold text-debt">'+SUPPRESSIONS.length+'</div><div class="text-xs text-txt-muted font-semibold mt-0.5">トレードオフ総数</div></div>'
+    +'<div class="'+cardBase+'"><div class="text-2xl font-bold text-pat">'+byType.domain+'</div><div class="text-xs text-txt-muted font-semibold mt-0.5">ドメイン制約</div></div>'
+    +'<div class="'+cardBase+'"><div class="text-2xl font-bold text-link">'+byType.technical+'</div><div class="text-xs text-txt-muted font-semibold mt-0.5">技術的判断</div></div>'
+    +'<div class="'+cardBase+'"><div class="text-2xl font-bold text-txt-muted">'+byType.preference+'</div><div class="text-xs text-txt-muted font-semibold mt-0.5">チーム慣習</div></div>'
+    +'<div class="'+cardBase+'"><div class="text-2xl font-bold text-green-400">'+approvedCount+'</div><div class="text-xs text-txt-muted font-semibold mt-0.5">承認済み</div></div>'
+    +'<div class="'+cardBase+'"><div class="text-2xl font-bold text-sev-high">'+pendingCount+'</div><div class="text-xs text-txt-muted font-semibold mt-0.5">未承認</div></div>';
+
+  const filterEl = document.getElementById("tradeoff-filters");
+  const allBtn = mkBtn("すべて", true);
+  allBtn.onclick = () => {
+    activeWhyTypes.clear();
+    filterEl.querySelectorAll("button").forEach(b => {
+      b.classList.remove("bg-link","border-link","text-white");
+      b.classList.add("bg-surface-4","border-surface-3","text-txt");
+    });
+    allBtn.classList.remove("bg-surface-4","border-surface-3","text-txt");
+    allBtn.classList.add("bg-link","border-link","text-white");
+    renderTradeoffs();
+  };
+  filterEl.appendChild(allBtn);
+  ["domain","technical","preference"].forEach(t => {
+    const labels = {domain:"ドメイン制約", technical:"技術的判断", preference:"チーム慣習"};
+    const btn = mkBtn(labels[t]||t);
+    btn.onclick = () => {
+      allBtn.classList.remove("bg-link","border-link","text-white");
+      allBtn.classList.add("bg-surface-4","border-surface-3","text-txt");
+      if (activeWhyTypes.has(t)) {
+        activeWhyTypes.delete(t);
+        btn.classList.remove("bg-link","border-link","text-white");
+        btn.classList.add("bg-surface-4","border-surface-3","text-txt");
+      } else {
+        activeWhyTypes.add(t);
+        btn.classList.remove("bg-surface-4","border-surface-3","text-txt");
+        btn.classList.add("bg-link","border-link","text-white");
+      }
+      if (activeWhyTypes.size===0) {
+        allBtn.classList.remove("bg-surface-4","border-surface-3","text-txt");
+        allBtn.classList.add("bg-link","border-link","text-white");
+      }
+      renderTradeoffs();
+    };
+    filterEl.appendChild(btn);
+  });
+  renderTradeoffs();
+})();
+
+function renderTradeoffs() {
+  let data = SUPPRESSIONS;
+  if (activeWhyTypes.size) data = data.filter(s => activeWhyTypes.has(s.why_type||"technical"));
+  const tbody = document.getElementById("tradeoff-tbody");
+  const empty = document.getElementById("tradeoff-empty");
+  if (!data.length) { tbody.innerHTML = ""; empty.classList.remove("hidden"); return; }
+  empty.classList.add("hidden");
+  const whyTypeColors = {domain:'bg-pat/15 text-pat', technical:'bg-link/15 text-link', preference:'bg-sev-low/15 text-sev-low'};
+  tbody.innerHTML = data.map(s => {
+    const wt = s.why_type||"technical";
+    const wtLabels = {domain:"ドメイン", technical:"技術", preference:"慣習"};
+    const wtCls = whyTypeColors[wt] || 'bg-sev-low/15 text-sev-low';
+    const files = (s.files||[]).join(" <-> ");
+    const approver = s.approved_by
+      ? '<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-400/15 text-green-400">'+esc(s.approved_by)+'</span>'
+      : '<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-medium bg-sev-high/15 text-sev-high">未承認</span>';
+    const sid = esc(s.id||'');
+    const sidShort = sid.includes('-') ? sid.slice(sid.lastIndexOf('-')+1) : sid;
+    return '<tr class="border-b border-surface-3 hover:bg-surface-2 transition-colors">'
+      +'<td class="px-3 py-2.5 font-mono text-txt-muted text-[11px]" title="'+sid+'">'+sidShort+'</td>'
+      +'<td class="px-3 py-2.5"><span class="font-mono text-[11px] text-pat">'+esc(s.pattern||'')+'</span></td>'
+      +'<td class="px-3 py-2.5 font-mono text-xs text-file">'+esc(files)+'</td>'
+      +'<td class="px-3 py-2.5"><span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold '+wtCls+'">'+(wtLabels[wt]||wt)+'</span></td>'
+      +'<td class="px-3 py-2.5 max-w-[400px] leading-relaxed">'+esc(s.why||'')+'</td>'
+      +'<td class="px-3 py-2.5">'+esc(s.author||'')+'</td>'
+      +'<td class="px-3 py-2.5">'+approver+'</td>'
+      +'<td class="px-3 py-2.5">'+esc(s.date||'')+'</td>'
+      +'</tr>';
+  }).join("");
+}
+
+// ══════════════════════════════════════
+// Coverage Matrix
+// ══════════════════════════════════════
+(function renderCoverageMatrix() {
+  if (!COVERAGE_MATRIX) return;
+  const cells = COVERAGE_MATRIX.cells || [];
+
+  // --- Matrix: rows = scope, cols = default depth + deep depth ---
+  const scopes = ["diff", "pr", "smart", "wide"];
+
+  const table = document.getElementById("coverage-matrix");
+  if (!table) return;
+  const thead = table.querySelector("thead tr");
+  const tbody = table.querySelector("tbody");
+
+  thead.innerHTML = '<th class="bg-surface-2 text-txt-muted font-semibold text-[10px] tracking-wider px-3 py-2 text-left border border-surface-3">スキャン対象</th>'
+    + '<th class="bg-surface-2 text-txt-muted font-semibold text-[10px] tracking-wider px-3 py-2 text-center border border-surface-3">通常</th>'
+    + '<th class="bg-surface-2 text-txt-muted font-semibold text-[10px] tracking-wider px-3 py-2 text-center border border-surface-3">深層</th>';
+
+  const scopeGroupLabels = {
+    "diff": "デグレ検知（フロー型）",
+    "pr": "PRレビュー（フロー型）",
+    "smart": "コードベース診断（ストック型）",
+    "wide": "全ファイルスキャン（ストック型）",
+  };
+
+  tbody.innerHTML = "";
+
+  function makeCopyIcon() {
+    return '<svg class="w-3 h-3 inline-block opacity-40 group-hover:opacity-80 transition-opacity shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke-width="2"/></svg>';
+  }
+  function makeCopyHandler(cmd) {
+    return 'onclick="navigator.clipboard.writeText(\'' + cmd.replace(/'/g, "\\'") + '\');var m=this.querySelector(\'.copy-msg\');m.style.visibility=\'visible\';setTimeout(function(){m.style.visibility=\'hidden\'},1500)"';
+  }
+  function renderCell(cell) {
+    var ci = makeCopyIcon();
+    var ch = makeCopyHandler(cell.command);
+    return '<td class="group px-3 py-2.5 text-center border border-surface-3 bg-surface-2 cursor-pointer hover:bg-accent/10 transition-colors" ' + ch + '>'
+      + '<div class="flex items-center justify-center gap-1">' + ci + '<code class="bg-surface-1 px-1.5 py-0.5 rounded text-[10px] text-txt-muted">' + esc(cell.command) + '</code></div>'
+      + '<div class="copy-msg text-[9px] text-accent mt-0.5 font-semibold h-4" style="visibility:hidden">Copied!</div></td>';
+  }
+
+  // --- Main matrix: one row per scope, two columns (default + deep) ---
+  scopes.forEach(scope => {
+    const groupLabel = scopeGroupLabels[scope];
+    if (groupLabel) {
+      const isFlow = scope === "diff" || scope === "pr";
+      const dotColor = isFlow ? "bg-link" : "bg-accent";
+      tbody.innerHTML += '<tr><td colspan="3" class="px-3 py-2 border border-surface-3 bg-surface-1 text-[11px] font-semibold">'
+        + '<span class="w-2 h-2 rounded-full ' + dotColor + ' inline-block mr-1.5 align-middle"></span>'
+        + groupLabel
+        + '</td></tr>';
+    }
+
+    const scopeLabel = cells.find(c => c.scope === scope)?.scope_label || scope;
+
+    if (scope === "pr") {
+      const prCell = cells.find(c => c.scope === "pr" && c.depth === "deep" && c.lens === "default");
+      const ci = makeCopyIcon();
+      const cmd = "delta-scan --scope pr";
+      const ch = makeCopyHandler(cmd);
+      let row = '<tr><td class="px-3 py-2.5 text-[11px] border border-surface-3 bg-surface-1 font-semibold">' + esc(scopeLabel) + '</td>';
+      row += '<td colspan="2" class="group px-3 py-2.5 text-center border border-surface-3 bg-surface-2 cursor-pointer hover:bg-accent/10 transition-colors" ' + ch + '>'
+        + '<div class="flex items-center justify-center gap-1">' + ci + '<code class="bg-surface-1 px-1.5 py-0.5 rounded text-[10px] text-txt-muted">' + esc(cmd) + '</code></div>'
+        + '<div class="text-[9px] text-txt-dim mt-0.5">自動で深層解析</div>'
+        + '<div class="copy-msg text-[9px] text-accent mt-0.5 font-semibold h-4" style="visibility:hidden">Copied!</div></td>';
+      row += '</tr>';
+      tbody.innerHTML += row;
+    } else {
+      let row = '<tr><td class="px-3 py-2.5 text-[11px] border border-surface-3 bg-surface-1 font-semibold">' + esc(scopeLabel) + '</td>';
+
+      const defaultCell = cells.find(c => c.scope === scope && c.depth === "default" && c.lens === "default");
+      row += defaultCell ? renderCell(defaultCell) : '<td class="px-3 py-2.5 text-center border border-surface-3 bg-surface-1 text-txt-dim text-[10px]">—</td>';
+
+      const deepCell = cells.find(c => c.scope === scope && c.depth === "deep" && c.lens === "default");
+      row += deepCell ? renderCell(deepCell) : '<td class="px-3 py-2.5 text-center border border-surface-3 bg-surface-1 text-txt-dim text-[10px]">—</td>';
+
+      row += '</tr>';
+      tbody.innerHTML += row;
+    }
+  });
+
+  // --- Standalone lens cards: stress, security (scope-independent) ---
+  const lensCards = [
+    { lens: "stress", label: "ストレステスト", cmd: "delta-scan --lens stress", desc: "仮想改修 × 全ファイル → 地雷マップ生成（10-30分）" },
+    { lens: "security", label: "セキュリティ", cmd: "delta-scan --lens security", desc: "セキュリティ観点の構造矛盾チェック" },
+  ];
+  let cardsHtml = '<div class="mt-4 grid grid-cols-2 gap-3">';
+  lensCards.forEach(lc => {
+    const ci = makeCopyIcon();
+    const ch = makeCopyHandler(lc.cmd);
+    cardsHtml += '<div class="group border border-surface-3 rounded-lg p-3 bg-surface-2 cursor-pointer hover:bg-accent/10 transition-colors" ' + ch + '>'
+      + '<div class="flex items-center gap-2 mb-1">'
+      + '<span class="font-semibold text-[12px]">' + esc(lc.label) + '</span></div>'
+      + '<div class="text-[10px] text-txt-muted mt-1">' + esc(lc.desc) + '</div>'
+      + '<div class="flex items-center gap-1 mt-1.5">' + ci + '<code class="bg-surface-1 px-1.5 py-0.5 rounded text-[10px] text-txt-muted">' + esc(lc.cmd) + '</code></div>'
+      + '<div class="copy-msg text-[9px] text-accent mt-0.5 font-semibold h-4" style="visibility:hidden">Copied!</div></div>';
+  });
+  cardsHtml += '</div>';
+  table.insertAdjacentHTML('afterend', cardsHtml);
+
+})();
+</script>
+<script>
+// Auto-reload: detect file changes and refresh without flicker
+(function() {
+  var lastLen = document.documentElement.innerHTML.length;
+  var iv = setInterval(function() {
+    fetch(location.href, {cache: 'no-store'}).then(function(r) { return r.text(); }).then(function(t) {
+      if (t.length !== lastLen) { clearInterval(iv); location.reload(); }
+    }).catch(function(){});
+  }, 5000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>δ DeltaLint — AI Agent Skill</title>
+	<style>
+		@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+		* {
+			margin: 0;
+			padding: 0;
+			box-sizing: border-box;
+		}
+
+		:root {
+			--navy: #0a2540;
+			--text: #425466;
+			--text-light: #68778d;
+			--purple: #635bff;
+			--purple-light: #7a73ff;
+			--purple-bg: #f0eeff;
+			--cyan: #00d4aa;
+			--cyan-bg: #e6faf5;
+			--bg: #ffffff;
+			--bg-alt: #f6f9fc;
+			--border: #e3e8ee;
+			--red: #ff5b6a;
+		}
+
+		html,
+		body {
+			overflow: hidden;
+			height: 100%;
+		}
+
+		body {
+			font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
+			background: #0a0a0a;
+			color: var(--text);
+			line-height: 1.6;
+		}
+
+		/* ── Deck ── */
+		.deck {
+			position: relative;
+			width: 100vw;
+			height: 100vh;
+		}
+
+		.slide {
+			position: absolute;
+			inset: 0;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			opacity: 0;
+			pointer-events: none;
+			transition: opacity 0.45s ease;
+		}
+
+		.slide.active {
+			opacity: 1;
+			pointer-events: auto;
+		}
+
+		.slide-inner {
+			width: 1280px;
+			height: 720px;
+			background: var(--bg);
+			border-radius: 8px;
+			overflow: hidden;
+			position: relative;
+			display: flex;
+			flex-direction: column;
+			justify-content: flex-start;
+			padding: 0;
+			box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+		}
+
+		/* ── Slide header bar ── */
+		.slide-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			padding: 16px 40px;
+			border-bottom: 1px solid var(--border);
+			background: var(--bg);
+			flex-shrink: 0;
+			position: relative;
+			z-index: 5;
+		}
+
+		.slide-header-logo {
+			display: flex;
+			align-items: baseline;
+			gap: 6px;
+		}
+
+		.slide-header-logo .delta {
+			font-size: 20px;
+			font-weight: 300;
+			color: var(--purple);
+		}
+
+		.slide-header-logo .name {
+			font-size: 14px;
+			font-weight: 700;
+			color: var(--navy);
+			letter-spacing: -0.01em;
+		}
+
+		.slide-header-badge {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			font-size: 12px;
+			font-weight: 600;
+			color: var(--text-light);
+		}
+
+		.slide-header-badge .badge-label {
+			color: var(--purple);
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.06em;
+		}
+
+		.slide-header-badge .badge-pct {
+			background: var(--purple-bg);
+			color: var(--purple);
+			font-size: 11px;
+			font-weight: 700;
+			padding: 2px 8px;
+			border-radius: 12px;
+		}
+
+		/* ── Slide body (content area below header) ── */
+		.slide-body {
+			flex: 1;
+			display: flex;
+			flex-direction: column;
+			justify-content: flex-start;
+			padding: 48px 72px;
+			overflow: hidden;
+		}
+
+		.page-num {
+			position: absolute;
+			bottom: 20px;
+			right: 36px;
+			font-size: 12px;
+			color: var(--text-light);
+			font-weight: 500;
+			font-variant-numeric: tabular-nums;
+			z-index: 5;
+		}
+
+		#progress {
+			position: fixed;
+			bottom: 0;
+			left: 0;
+			height: 3px;
+			background: var(--purple);
+			transition: width 0.4s ease;
+			z-index: 100;
+		}
+
+		/* ── Typography ── */
+		h1 {
+			font-size: 48px;
+			font-weight: 800;
+			color: var(--navy);
+			letter-spacing: -0.03em;
+			line-height: 1.2;
+			margin-bottom: 24px;
+		}
+
+		h2 {
+			font-size: 36px;
+			font-weight: 700;
+			color: var(--navy);
+			letter-spacing: -0.02em;
+			line-height: 1.3;
+			margin-bottom: 20px;
+		}
+
+		h3 {
+			font-size: 20px;
+			font-weight: 600;
+			color: var(--text);
+			margin-bottom: 12px;
+		}
+
+		p {
+			font-size: 20px;
+			color: var(--text);
+			line-height: 1.7;
+			margin-bottom: 12px;
+		}
+
+		.lead {
+			font-size: 24px;
+			color: var(--text-light);
+			font-weight: 400;
+		}
+
+		/* ── Title slide ── */
+		.slide-title .slide-inner {
+			background: linear-gradient(135deg, #0a2540 0%, #1a3a5c 50%, #0a2540 100%);
+			text-align: center;
+			align-items: center;
+			justify-content: center;
+			position: relative;
+			overflow: hidden;
+			padding: 0;
+		}
+
+		.slide-title .slide-header {
+			display: none;
+		}
+
+		.slide-title .slide-inner::before {
+			content: '';
+			position: absolute;
+			top: -200px;
+			right: -200px;
+			width: 600px;
+			height: 600px;
+			background: radial-gradient(circle, rgba(99, 91, 255, 0.15) 0%, transparent 70%);
+		}
+
+		.slide-title .slide-inner::after {
+			content: '';
+			position: absolute;
+			bottom: -150px;
+			left: -100px;
+			width: 400px;
+			height: 400px;
+			background: radial-gradient(circle, rgba(0, 212, 170, 0.1) 0%, transparent 70%);
+		}
+
+		.slide-title h1 {
+			color: #fff;
+			font-size: 72px;
+			margin-bottom: 8px;
+			position: relative;
+		}
+
+		.slide-title .delta {
+			color: var(--purple-light);
+			font-weight: 300;
+		}
+
+		.slide-title .subtitle {
+			color: #adbdcc;
+			font-size: 22px;
+			font-weight: 400;
+			line-height: 1.6;
+			position: relative;
+		}
+
+		.slide-title .tagline {
+			color: rgba(255, 255, 255, 0.75);
+			font-size: 18px;
+			font-weight: 400;
+			letter-spacing: 0.05em;
+			position: relative;
+			margin-bottom: 4px;
+		}
+
+		.slide-title .company-names {
+			color: rgba(255, 255, 255, 0.4);
+			font-size: 15px;
+			font-weight: 400;
+			letter-spacing: 0.1em;
+			position: relative;
+			margin-bottom: 4px;
+		}
+
+		.slide-title .page-num {
+			color: rgba(255, 255, 255, 0.3);
+		}
+
+
+		/* ── Callout ── */
+		.callout {
+			background: var(--bg-alt);
+			border-left: 4px solid var(--purple);
+			border-radius: 0 12px 12px 0;
+			padding: 24px 32px;
+			margin: 20px 0;
+			font-size: 22px;
+			color: var(--navy);
+			font-weight: 500;
+		}
+
+		.callout-cyan {
+			border-left-color: var(--cyan);
+			background: var(--cyan-bg);
+		}
+
+		.callout-red {
+			border-left-color: var(--red);
+			background: #fff0f0;
+		}
+
+		/* ── Code block ── */
+		.code-block {
+			background: var(--navy);
+			color: #e0e7ee;
+			font-family: 'JetBrains Mono', monospace;
+			font-size: 20px;
+			padding: 20px 28px;
+			border-radius: 12px;
+			margin: 16px 0;
+		}
+
+		.code-block .prompt {
+			color: var(--cyan);
+		}
+
+		.code-block .cmd {
+			color: #fff;
+			font-weight: 500;
+		}
+
+		.code-block .flag {
+			color: var(--purple-light);
+		}
+
+		/* ── Features grid ── */
+		.features {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 20px;
+			margin-top: 16px;
+		}
+
+		.feature {
+			background: var(--bg-alt);
+			border: 1px solid var(--border);
+			border-radius: 12px;
+			padding: 24px 28px;
+		}
+
+		.feature-icon {
+			width: 36px;
+			height: 36px;
+			border-radius: 8px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 18px;
+			margin-bottom: 12px;
+			font-weight: 700;
+		}
+
+		.feature-icon.purple {
+			background: var(--purple-bg);
+			color: var(--purple);
+		}
+
+		.feature-icon.cyan {
+			background: var(--cyan-bg);
+			color: #00a884;
+		}
+
+		.feature h3 {
+			font-size: 16px;
+			font-weight: 700;
+			color: var(--navy);
+			margin-bottom: 6px;
+		}
+
+		.feature p {
+			font-size: 15px;
+			color: var(--text-light);
+			margin: 0;
+			line-height: 1.5;
+		}
+
+		/* ── Bullet list ── */
+		.bullet-list {
+			list-style: none;
+			padding: 0;
+		}
+
+		.bullet-list li {
+			font-size: 20px;
+			padding: 10px 0 10px 28px;
+			position: relative;
+			color: var(--text);
+			border-bottom: 1px solid var(--border);
+		}
+
+		.bullet-list li:last-child {
+			border-bottom: none;
+		}
+
+		.bullet-list li::before {
+			content: '';
+			position: absolute;
+			left: 0;
+			top: 18px;
+			width: 10px;
+			height: 10px;
+			border-radius: 50%;
+			background: var(--purple);
+		}
+
+		.bullet-list li strong {
+			color: var(--navy);
+			font-weight: 700;
+		}
+
+		/* ── Table ── */
+		.data-table {
+			width: 100%;
+			border-collapse: collapse;
+			font-size: 16px;
+			margin-top: 12px;
+		}
+
+		.data-table th {
+			text-align: left;
+			padding: 12px 16px;
+			font-weight: 600;
+			color: var(--text-light);
+			font-size: 13px;
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+			border-bottom: 2px solid var(--border);
+		}
+
+		.data-table td {
+			padding: 11px 16px;
+			border-bottom: 1px solid var(--border);
+			color: var(--text);
+		}
+
+		.data-table td:first-child {
+			font-weight: 600;
+			color: var(--navy);
+		}
+
+		.data-table .star {
+			color: var(--text-light);
+			font-size: 14px;
+		}
+
+		.data-table .badge {
+			display: inline-block;
+			background: var(--cyan-bg);
+			color: #00a884;
+			font-size: 13px;
+			font-weight: 600;
+			padding: 2px 10px;
+			border-radius: 20px;
+		}
+
+		/* ── Stats ── */
+		.stats {
+			display: flex;
+			gap: 24px;
+			margin: 24px 0;
+		}
+
+		.stat {
+			flex: 1;
+			text-align: center;
+			padding: 24px 16px;
+			background: var(--bg-alt);
+			border-radius: 12px;
+			border: 1px solid var(--border);
+		}
+
+		.stat-number {
+			font-size: 40px;
+			font-weight: 800;
+			color: var(--navy);
+			letter-spacing: -0.03em;
+			line-height: 1;
+			margin-bottom: 6px;
+		}
+
+		.stat-number .unit {
+			font-size: 20px;
+			color: var(--text-light);
+			font-weight: 500;
+		}
+
+		.stat-label {
+			font-size: 14px;
+			color: var(--text-light);
+			font-weight: 500;
+		}
+
+		/* ── Helpers ── */
+		.hl {
+			color: var(--purple);
+			font-weight: 600;
+		}
+
+		.hl-navy {
+			color: var(--navy);
+			font-weight: 700;
+		}
+
+		.hl-red {
+			color: var(--red);
+			font-weight: 600;
+		}
+
+		.cols {
+			display: flex;
+			gap: 48px;
+			align-items: flex-start;
+		}
+
+		.col {
+			flex: 1;
+		}
+
+		.tag {
+			display: inline-block;
+			font-size: 13px;
+			font-weight: 600;
+			padding: 4px 12px;
+			border-radius: 20px;
+			margin-right: 6px;
+		}
+
+		.tag-purple {
+			background: var(--purple-bg);
+			color: var(--purple);
+		}
+
+		.tag-cyan {
+			background: var(--cyan-bg);
+			color: #00a884;
+		}
+
+		/* ── Flow diagram ── */
+		.flow {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			margin: 20px 0;
+			flex-wrap: wrap;
+		}
+
+		.flow-step {
+			background: var(--bg-alt);
+			border: 1px solid var(--border);
+			border-radius: 10px;
+			padding: 12px 20px;
+			font-size: 15px;
+			font-weight: 600;
+			color: var(--navy);
+			white-space: nowrap;
+		}
+
+		.flow-step.active {
+			background: var(--purple);
+			border-color: var(--purple);
+			color: #fff;
+		}
+
+		.flow-arrow {
+			color: var(--border);
+			font-size: 20px;
+		}
+
+		/* ── Closing slide ── */
+		.slide-closing .slide-inner {
+			background: linear-gradient(135deg, #0a2540 0%, #1a3a5c 50%, #0a2540 100%);
+			text-align: center;
+			align-items: center;
+			justify-content: center;
+			position: relative;
+			overflow: hidden;
+			padding: 0;
+		}
+
+		.slide-closing .slide-header {
+			display: none;
+		}
+
+		.slide-closing .slide-inner::before {
+			content: '';
+			position: absolute;
+			width: 100%;
+			height: 100%;
+			background: radial-gradient(ellipse at 50% 80%, rgba(99, 91, 255, 0.12) 0%, transparent 60%);
+		}
+
+		.slide-closing h1 {
+			color: #fff;
+			font-size: 52px;
+			position: relative;
+		}
+
+		.slide-closing p {
+			color: #adbdcc;
+			font-size: 22px;
+			position: relative;
+		}
+
+		.slide-closing .cta {
+			color: #fff;
+			font-size: 26px;
+			font-weight: 700;
+			position: relative;
+			margin-top: 16px;
+		}
+
+		.slide-closing .page-num {
+			color: rgba(255, 255, 255, 0.3);
+		}
+
+		.mono {
+			font-family: 'JetBrains Mono', monospace;
+			background: var(--purple-bg);
+			color: var(--purple);
+			padding: 2px 8px;
+			border-radius: 4px;
+			font-size: 0.9em;
+		}
+
+		/* ── Scattered OSS Cards ── */
+		.card-scatter {
+			position: absolute;
+			inset: 0;
+			pointer-events: none;
+			overflow: hidden;
+		}
+
+		.card-scatter img {
+			position: absolute;
+			width: 180px;
+			border-radius: 10px;
+			box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+			opacity: 0.55;
+			transition: opacity 0.3s;
+		}
+
+		.slide-title .card-scatter img {
+			position: static;
+			opacity: 0.45;
+			filter: brightness(1.1);
+			transition: none;
+			height: auto;
+			object-fit: contain;
+			border-radius: 16px;
+			overflow: hidden;
+		}
+
+		.slide-closing .card-scatter img {
+			position: static;
+			opacity: 0.35;
+			filter: brightness(1.1);
+			transition: none;
+			height: auto;
+			object-fit: contain;
+			border-radius: 16px;
+			overflow: hidden;
+		}
+
+		/* Card wall: dense mosaic for results slide */
+		.card-wall {
+			position: absolute;
+			inset: 0;
+			pointer-events: none;
+			overflow: hidden;
+			z-index: 0;
+		}
+
+		.card-wall img {
+			position: absolute;
+			border-radius: 8px;
+			box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+		}
+
+		.slide-inner>*:not(.card-scatter):not(.card-wall):not(.page-num) {
+			position: relative;
+			z-index: 1;
+		}
+	</style>
+</head>
+<body>
+	<div class="deck" id="deck">
+
+		<!-- ===== 1. Title ===== -->
+		<div class="slide slide-title active" data-slide="0">
+			<div class="slide-inner">
+				<div class="card-scatter" id="title-cards"></div>
+				<p class="company-names">Microsoft · ByteDance · Facebook …</p>
+				<p class="tagline">世界トップレベルのOSS・エンジニアが認めた</p>
+				<h1>DeltaLint</h1>
+				<p class="subtitle" style="color: #fff;">リグレッションバグ検知Skill</p>
+				<span class="page-num">1 / 11</span>
+			</div>
+		</div>
+
+		<!-- ===== 2. Problem ===== -->
+		<div class="slide" data-slide="1">
+			<div class="slide-inner">
+				<h2>「機能改修したら、<span class="hl-red">関係ない場所</span>でバグが出た」</h2>
+				<p style="margin-top: 32px;">エンジニアなら誰もが経験する <span class="hl-navy">リグレッションバグ</span></p>
+				<span class="page-num">2 / 11</span>
+			</div>
+		</div>
+
+		<!-- ===== 3. Demo intro ===== -->
+		<div class="slide" data-slide="2">
+			<div class="slide-inner">
+				<h2 style="margin-top: 16px;">delta-scan</h2>
+				<div class="code-block">
+					<span class="prompt">❯</span> <span class="cmd">/delta-scan</span>
+				</div>
+				<p style="margin-top: 16px;">これだけで、リポジトリにあるバグを特定します</p>
+				<p style="font-size: 18px; margin-top: 12px; color: var(--text-light);">
+					LLM に「バグを洗い出して」「PRにバグないか調査して」<br>
+					と依頼する従来のプロンプトとは違った原理で動いています
+				</p>
+				<span class="page-num">3 / 11</span>
+			</div>
+		</div>
+
+		<!-- ===== 4. Under the hood + Not brute force ===== -->
+		<div class="slide" data-slide="3">
+			<div class="slide-inner">
+				<div class="section-badge"><span class="badge-label">自律性</span></div>
+				<h2>裏では何が起きているか</h2>
+				<!-- ✕○ 左右比較 -->
+				<div style="display: flex; gap: 32px; margin-top: 36px; margin-bottom: 56px;">
+					<div style="flex: 1; display: flex; align-items: center; gap: 16px;">
+						<span style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: #fff0f0; color: var(--red); font-size: 28px; font-weight: 700; flex-shrink: 0;">✕</span>
+						<p style="font-size: 17px; color: var(--text-light); margin: 0;">依存関係を全部コンテキストに入れる力技</p>
+					</div>
+					<div style="flex: 1; display: flex; align-items: center; gap: 16px;">
+						<span style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: var(--cyan-bg); color: var(--cyan); font-size: 28px; font-weight: 700; flex-shrink: 0;">○</span>
+						<p style="font-size: 17px; font-weight: 600; color: var(--navy); margin: 0;"><span class="hl">暗黙の前提</span> や <span class="hl">過去の関係</span> が<br>どう矛盾するかを賢く取りにいく</p>
+					</div>
+				</div>
+				<!-- ステップ一覧 -->
+				<p style="font-size: 13px; font-weight: 700; color: var(--cyan); margin: 0 0 8px; letter-spacing: 0.5px;">delta-scan</p>
+				<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px;">
+					<div style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+						<strong style="color: var(--navy); font-size: 13px;">Git履歴ベース選定</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">変更頻度・バグ修正頻度で優先スキャン</p>
+					</div>
+					<div style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+						<strong style="color: var(--navy); font-size: 13px;">Co-change 検出</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">一緒に変更された履歴から暗黙の依存を発見</p>
+					</div>
+					<div style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+						<strong style="color: var(--navy); font-size: 13px;">地雷マップ生成</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">仮想改修で壊れる場所をシミュレーション</p>
+					</div>
+					<div style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+						<strong style="color: var(--navy); font-size: 13px;">構造矛盾 × 6パターン</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">意味的な矛盾をパターン分類で自動検証</p>
+					</div>
+					<div style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+						<strong style="color: var(--navy); font-size: 13px;">Sibling Map 学習</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">関連ペアを蓄積、使うほど精度が育つ</p>
+					</div>
+					<div style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+						<strong style="color: var(--navy); font-size: 13px;">適応的スキャン範囲</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">コミット頻度で期間を自動調整</p>
+					</div>
+					<div style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+						<strong style="color: var(--navy); font-size: 13px;">情報理論スコアリング</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">新規性 × 集中度で深刻度を自動採点</p>
+					</div>
+					<div style="background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;">
+						<strong style="color: var(--navy); font-size: 13px;">Chao1 未発見推定</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">あと何件潜んでいるかを統計推定</p>
+					</div>
+				</div>
+				<!-- 壊れても止まらない工夫 -->
+				<p style="font-size: 13px; font-weight: 700; color: var(--purple); margin: 0 0 8px; letter-spacing: 0.5px;">壊れても止まらない</p>
+				<div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
+					<div style="background: var(--purple-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;">
+						<strong style="color: var(--navy); font-size: 12px;">LLM出力が壊れる</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">→ 4段階パーサーで部分抽出して続行</p>
+					</div>
+					<div style="background: var(--purple-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;">
+						<strong style="color: var(--navy); font-size: 12px;">APIがタイムアウト</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">→ CLI→SDK→HTTPの3層フォールバック</p>
+					</div>
+					<div style="background: var(--purple-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;">
+						<strong style="color: var(--navy); font-size: 12px;">リポが巨大すぎる</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">→ バッチ分割、1つ死んでも他は続行</p>
+					</div>
+					<div style="background: var(--purple-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;">
+						<strong style="color: var(--navy); font-size: 12px;">途中でプロセスが死ぬ</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">→ append-only で記録済み分は残る</p>
+					</div>
+					<div style="background: var(--purple-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px;">
+						<strong style="color: var(--navy); font-size: 12px;">同じバグを何度も報告</strong>
+						<p style="font-size: 11px; margin: 3px 0 0; color: var(--text-light);">→ 3層の重複排除で自動統合</p>
+					</div>
+				</div>
+				<span class="page-num">4 / 11</span>
+			</div>
+		</div>
+
+		<!-- ===== 6. delta fix ===== -->
+		<div class="slide" data-slide="4">
+			<div class="slide-inner">
+				<div class="section-badge"><span class="badge-label">自律性</span></div>
+				<h2 style="margin-top: 16px;">delta-fix</h2>
+				<p>Issue や確定バグをもとに、コード修正・コミット・デグレチェック・PR作成までを自動化</p>
+				<div class="code-block">
+					<span class="prompt">❯</span> <span class="cmd">/delta-fix</span><br>
+					<span class="prompt">❯</span> <span class="cmd">/delta-fix</span> <span class="flag">--issue 42</span><br>
+					<span class="prompt">❯</span> <span class="cmd">/delta-fix</span> <span class="flag">--ids dl-12345678</span>
+				</div>
+				<div class="flow" style="margin-top: 36px;">
+					<div class="flow-step">検出</div>
+					<span class="flow-arrow">→</span>
+					<div class="flow-step">改修コミット</div>
+					<span class="flow-arrow">→</span>
+					<div class="flow-step">リグレチェック</div>
+					<span class="flow-arrow">→</span>
+					<div class="flow-step active">PR作成</div>
+				</div>
+				<span class="page-num">5 / 11</span>
+			</div>
+		</div>
+
+		<!-- ===== 8. Playwright ===== -->
+		<div class="slide" data-slide="5">
+			<div class="slide-inner">
+				<div class="section-badge"><span class="badge-label">クオリティ</span>				</div>
+				<h2 style="margin-top: 16px;">microsoft/playwright <span
+						style="font-weight: 400; font-size: 20px; color: var(--text-light);">⭐ 70K</span></h2>
+				<p>スクリーンショットの画質設定で <span class="hl-navy">0〜100</span> の指定が可能</p>
+				<div class="callout" style="margin: 20px 0;">
+					<span class="mono">quality: 0</span> を入れると
+					<span class="hl-red">自動で 80 に上書きされる(高品質化)</span>
+				</div>
+				<p>「説明書と実際の動きが食い違っている」</p>
+				<p>→ これを <span class="hl">矛盾点</span> として検出します</p>
+				<div style="margin-top: 24px; display: flex; align-items: center; gap: 16px; background: linear-gradient(135deg, #f0eeff 0%, #e6faf5 100%); border: 2px solid var(--purple); border-radius: 12px; padding: 16px 24px;">
+					<svg width="32" height="32" viewBox="0 0 16 16" fill="none">
+						<path d="M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A5.734 5.734 0 0 1 5 7.123v3.505a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.95-.218Z" fill="#8250df"/>
+					</svg>
+					<div>
+						<span style="font-size: 20px; font-weight: 800; color: #8250df;">Merged</span>
+						<span style="font-size: 15px; color: var(--navy); margin-left: 8px;">PR <a href="https://github.com/microsoft/playwright/pull/39744" style="color: var(--purple); text-decoration: none;">#39744</a> — Microsoft公式メンテナがレビュー・承認</span>
+					</div>
+					<span style="font-size: 28px; margin-left: auto;">🎉</span>
+				</div>
+				<span class="page-num">6 / 11</span>
+			</div>
+		</div>
+
+		<!-- ===== 9. OSS Results ===== -->
+		<div class="slide" data-slide="6">
+			<div class="slide-inner" style="padding: 48px 64px;">
+				<div class="section-badge"><span class="badge-label">クオリティ</span>				</div>
+				<h2 style="margin-bottom: 20px;">OSS全体貢献 <span
+						style="font-weight: 400; font-size: 18px; color: var(--text-light);">3/13〜3/19　7日間</span>
+				</h2>
+				<div style="display: flex; gap: 36px;">
+					<!-- 左: PR→マージ -->
+					<div style="flex: 1;">
+						<h3 style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--purple); margin-bottom: 8px;">
+							PR作成 → マージ</h3>
+						<table class="data-table" style="font-size: 13px; margin-top: 0;">
+							<tbody>
+								<tr>
+									<td>microsoft/playwright</td>
+									<td class="star">70K</td>
+									<td><span class="badge">1件</span></td>
+								</tr>
+								<tr>
+									<td>facebook/lexical</td>
+									<td class="star">20K</td>
+									<td><span class="badge">1件</span></td>
+								</tr>
+								<tr>
+									<td>bytedance/deer-flow</td>
+									<td class="star">31K</td>
+									<td><span class="badge">3件</span></td>
+								</tr>
+								<tr>
+									<td>promptfoo/promptfoo</td>
+									<td class="star">16K</td>
+									<td><span class="badge">3件</span></td>
+								</tr>
+								<tr>
+									<td>trpc/trpc</td>
+									<td class="star">37K</td>
+									<td><span class="badge">1件</span></td>
+								</tr>
+								<tr>
+									<td>coder/code-server</td>
+									<td class="star">77K</td>
+									<td><span class="badge">1件</span></td>
+								</tr>
+								<tr>
+									<td>D4Vinci/Scrapling</td>
+									<td class="star">30K</td>
+									<td><span class="badge">1件</span></td>
+								</tr>
+								<tr>
+									<td>getsentry/sentry</td>
+									<td class="star">43K</td>
+									<td><span class="badge">1件</span></td>
+								</tr>
+								<tr>
+									<td>abhigyanpatwari/GitNexus</td>
+									<td class="star">17K</td>
+									<td><span class="badge">1件</span></td>
+								</tr>
+							</tbody>
+						</table>
+						<div style="display: flex; align-items: center; gap: 10px; margin-top: 10px; background: linear-gradient(135deg, #f0eeff 0%, #e6faf5 100%); border: 2px solid var(--purple); border-radius: 10px; padding: 10px 16px;">
+							<svg width="22" height="22" viewBox="0 0 16 16" fill="none"><path d="M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A5.734 5.734 0 0 1 5 7.123v3.505a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.95-.218Z" fill="#8250df"/></svg>
+							<span style="font-size: 16px; font-weight: 800; color: #8250df;">13 Merged</span>
+							<span style="font-size: 13px; color: var(--navy);">across 9 repos 🎉</span>
+						</div>
+					</div>
+					<!-- 右: Issue＋セキュリティ -->
+					<div style="flex: 1;">
+						<h3 style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--purple); margin-bottom: 8px;">
+							Issue報告 → マージ</h3>
+						<table class="data-table" style="font-size: 13px; margin-top: 0;">
+							<tbody>
+								<tr>
+									<td>langgenius/dify</td>
+									<td class="star">133K</td>
+									<td><span class="badge">マージ</span></td>
+								</tr>
+								<tr>
+									<td>honojs/hono</td>
+									<td class="star">29K</td>
+									<td><span class="badge">マージ</span></td>
+								</tr>
+							</tbody>
+						</table>
+						<p style="font-size: 14px; font-weight: 700; color: var(--navy); margin-top: 8px;">→ 合計 2件</p>
+
+						<div style="margin-top: 28px;">
+							<h3 style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--purple); margin-bottom: 8px;">
+								セキュリティ脆弱性</h3>
+							<p style="font-size: 14px; color: var(--text); margin: 0;">個別報告 → <span class="hl-navy">合計 3件</span></p>
+						</div>
+
+						<div style="margin-top: 28px;">
+							<h3 style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-light); margin-bottom: 8px;">
+								PR → リジェクト</h3>
+							<p style="font-size: 14px; color: var(--text-light); margin: 0;"><span style="color: var(--red); font-weight: 700;">✕</span> 合計 1件</p>
+						</div>
+					</div>
+				</div>
+				<span class="page-num">7 / 11</span>
+			</div>
+		</div>
+
+
+		<!-- ===== Why it works ===== -->
+		<div class="slide" data-slide="7">
+			<div class="slide-inner">
+				<div class="section-badge"><span class="badge-label">クオリティ</span></div>
+				<h2>なぜ効くのか — 構造崩壊理論</h2>
+				<p style="font-size: 15px; color: var(--text-light); margin-bottom: 6px;">ソフトウェアを構造物と捉え、<span class="hl">矛盾をバグの発生源</span> として検出する</p>
+				<p style="font-size: 14px; color: var(--text-light); margin-bottom: 20px;">小さな矛盾10個より、<strong>構造的な矛盾1個</strong> のほうがシステムを壊す</p>
+				<!-- 理論の核心：構造矛盾 vs 事実的ノイズ -->
+				<div style="display: flex; gap: 24px; align-items: stretch; margin-bottom: 20px;">
+					<div style="flex: 1; background: var(--bg-alt); border: 1px solid var(--border); border-radius: 10px; padding: 20px; text-align: center;">
+						<div style="font-size: 13px; color: var(--text-light); margin-bottom: 8px;">事実的なノイズ（typo・命名ミス等）</div>
+						<div style="display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px;">
+							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+							<span style="display: inline-block; width: 18px; height: 18px; background: #d1d5db; border-radius: 3px;"></span>
+						</div>
+						<div style="font-size: 32px; font-weight: 700; color: var(--text-light);">×10</div>
+						<div style="margin-top: 8px; height: 6px; background: #e5e7eb; border-radius: 3px;"><div style="width: 75%; height: 100%; background: var(--cyan); border-radius: 3px;"></div></div>
+						<div style="font-size: 12px; color: var(--text-light); margin-top: 4px;">まだ動く</div>
+					</div>
+					<div style="flex: 0 0 48px; display: flex; align-items: center; justify-content: center;">
+						<span style="font-size: 28px; color: var(--red); font-weight: 700;">＜</span>
+					</div>
+					<div style="flex: 1; background: #fff5f5; border: 1px solid #fecaca; border-radius: 10px; padding: 20px; text-align: center;">
+						<div style="font-size: 13px; color: var(--red); margin-bottom: 8px; font-weight: 600;">構造的矛盾（設計の前提が壊れている）</div>
+						<div style="display: flex; justify-content: center; margin-bottom: 10px;">
+							<span style="display: inline-block; width: 36px; height: 36px; background: var(--red); border-radius: 5px;"></span>
+						</div>
+						<div style="font-size: 32px; font-weight: 700; color: var(--red);">×1</div>
+						<div style="margin-top: 8px; height: 6px; background: #e5e7eb; border-radius: 3px;"><div style="width: 8%; height: 100%; background: var(--red); border-radius: 3px;"></div></div>
+						<div style="font-size: 12px; color: var(--red); font-weight: 600; margin-top: 4px;">崩壊</div>
+					</div>
+				</div>
+				<!-- 検証と論文 -->
+				<div style="display: flex; gap: 16px; margin-bottom: 16px;">
+					<div style="flex: 1; background: var(--cyan-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px;">
+						<p style="font-size: 13px; color: var(--navy); margin: 0; line-height: 1.7;">
+							<strong>LLM 11モデル × 5ベンダー</strong> での実験と<br>
+							<strong>SAT問題</strong> での数学的検証により<br>
+							構造矛盾が蓄積すると健全性は<br>
+							<span style="font-weight: 700; color: var(--cyan); font-size: 15px;">指数関数的に崩壊する</span> ことを確認
+						</p>
+					</div>
+					<div style="flex: 1; background: var(--bg-alt); border: 1px solid var(--border); border-radius: 10px; padding: 16px;">
+						<p style="font-size: 13px; color: var(--navy); margin: 0; line-height: 1.7;">
+							<strong>構造崩壊理論</strong>（独自理論）として論文化<br>
+							<span style="font-size: 11px; color: var(--text-light);">Structural Collapse as Information Loss:<br>The Exponential Decay Mechanism</span><br>
+							<span style="font-size: 11px; color: var(--text-light);">※東大松尾研OB（学際発表経験有）による査読済み</span>
+						</p>
+					</div>
+				</div>
+				<!-- 結論 -->
+				<p style="font-size: 15px; color: var(--navy); margin: 0; text-align: center; line-height: 1.8;">
+					DeltaLint はこの理論で「設計図の食い違い」を自動検出する。<br>
+					だから <strong style="color: var(--cyan);">普通のリンターやテストでは見つからないバグ</strong> が見つかる。
+				</p>
+				<span class="page-num">8 / 11</span>
+			</div>
+		</div>
+
+		<!-- ===== 11. Sleep well ===== -->
+		<div class="slide" data-slide="8">
+			<div class="slide-inner">
+				<div class="section-badge"><span class="badge-label">インパクト</span></div>
+				<h2>エンジニアは安心して寝れます</h2>
+				<ul class="bullet-list" style="margin-top: 24px;">
+					<li><strong>エンジニア</strong> —「改修したら別の画面が壊れた」→ 変更前に影響範囲を自動特定</li>
+					<li><strong>PM / PdM</strong> —「この機能追加、どこに影響ある？」→ 相談時点で影響範囲が丸裸</li>
+					<li><strong>QA</strong> —「テスト書いたのに本番で障害が出た」→ テストが見逃す構造矛盾を検出</li>
+					<li><strong>テックリード</strong> —「技術負債がどこにあるか見えない」→ 負債スコアで定量化＆優先順位</li>
+					<li><strong>OSSメンテナ</strong> —「PRレビューで見落としが怖い」→ 実際に9リポ13件マージ</li>
+				</ul>
+				<span class="page-num">9 / 11</span>
+			</div>
+		</div>
+
+		<!-- ===== 13. Adoption ===== -->
+		<div class="slide" data-slide="9">
+			<div class="slide-inner">
+				<div class="section-badge"><span class="badge-label">インパクト</span></div>
+				<h2>エンプラでも導入予定</h2>
+				<p>エンプラレベルの <span class="hl-navy">10年規模のシステム</span> で<br>しっかり機能することを確認済み</p>
+				<div class="callout" style="margin-top: 24px; font-size: 24px;">
+					→ <span class="hl-navy">4月から実証・導入予定</span>
+				</div>
+				<span class="page-num">10 / 11</span>
+			</div>
+		</div>
+
+		<!-- ===== 14. Closing ===== -->
+		<div class="slide slide-closing" data-slide="10">
+			<div class="slide-inner">
+				<div class="card-scatter" id="closing-cards"></div>
+				<h1><span style="color: var(--purple-light); font-weight: 300;">δ</span> DeltaLint</h1>
+				<p class="cta">あなたの会社やプロダクトでも<br>是非使ってみてください！</p>
+				<span class="page-num">11 / 11</span>
+			</div>
+		</div>
+
+	</div>
+
+	<div id="progress"></div>
+
+	<script>
+		const slides = document.querySelectorAll('.slide');
+		const total = slides.length;
+		let current = 0;
+
+		function goTo(n) {
+			if (n < 0 || n >= total) return;
+			slides[current].classList.remove('active');
+			current = n;
+			slides[current].classList.add('active');
+			document.getElementById('progress').style.width = ((current + 1) / total * 100) + '%';
+		}
+
+		document.addEventListener('keydown', e => {
+			if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ' || e.key === 'PageDown') {
+				e.preventDefault(); goTo(current + 1);
+			} else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
+				e.preventDefault(); goTo(current - 1);
+			} else if (e.key === 'Home') { e.preventDefault(); goTo(0); }
+			else if (e.key === 'End') { e.preventDefault(); goTo(total - 1); }
+		});
+
+		let tx = 0;
+		document.addEventListener('touchstart', e => { tx = e.touches[0].clientX; });
+		document.addEventListener('touchend', e => {
+			const dx = e.changedTouches[0].clientX - tx;
+			if (Math.abs(dx) > 50) dx < 0 ? goTo(current + 1) : goTo(current - 1);
+		});
+
+		document.addEventListener('click', e => {
+			if (e.clientX < window.innerWidth / 3) goTo(current - 1);
+			else if (e.clientX > window.innerWidth * 2 / 3) goTo(current + 1);
+		});
+
+		document.getElementById('progress').style.width = (1 / total * 100) + '%';
+
+		// ── Auto-inject slide headers ──
+		const sectionMap = {
+			3: { label: '自律性' },
+			4: { label: '自律性' },
+			5: { label: 'クオリティ' },
+			6: { label: 'クオリティ' },
+			7: { label: 'クオリティ' },
+			8: { label: 'インパクト' },
+			9: { label: 'インパクト' },
+		};
+
+		slides.forEach(slide => {
+			const idx = parseInt(slide.dataset.slide);
+			const inner = slide.querySelector('.slide-inner');
+			// Skip title and closing slides
+			if (slide.classList.contains('slide-title') || slide.classList.contains('slide-closing')) return;
+
+			// Remove old section-badge if any
+			inner.querySelectorAll('.section-badge').forEach(el => el.remove());
+
+			// Build header
+			const header = document.createElement('div');
+			header.className = 'slide-header';
+			const logo = '<div class="slide-header-logo"><span class="delta">δ</span><span class="name">DeltaLint</span></div>';
+			const section = sectionMap[idx];
+			header.innerHTML = logo;
+
+			// Section label: below header, top-right corner, black text in bordered box
+			if (section) {
+				const label = document.createElement('div');
+				label.style.cssText = 'position:absolute; top:28px; right:36px; border:2px solid var(--navy); border-radius:6px; padding:10px 24px; font-size:18px; font-weight:700; color:var(--navy); letter-spacing:0.04em; z-index:5;';
+				label.textContent = section.label;
+				inner.appendChild(label);
+			}
+
+			// Wrap existing content (except page-num) in slide-body
+			const body = document.createElement('div');
+			body.className = 'slide-body';
+			// If slide has custom padding on slide-inner, move it to body
+			if (inner.style.padding) {
+				body.style.padding = inner.style.padding;
+				inner.style.padding = '0';
+			}
+			const children = [...inner.children];
+			children.forEach(child => {
+				if (!child.classList.contains('page-num')) {
+					body.appendChild(child);
+				}
+			});
+
+			inner.prepend(body);
+			inner.prepend(header);
+		});
+
+		// ── OSS Card Scatter ──
+		const cardImages = [
+			'01_dify.png', '02_code-server.png', '03_playwright.png', '04_sentry.png',
+			'05_trpc.png', '06_deer-flow-1161.png', '07_deer-flow-1162.png', '08_deer-flow-1163.png',
+			'09_scrapling.png', '10_hono.png', '11_lexical.png', '12_gitnexus.png',
+			'13_promptfoo-8163.png', '14_promptfoo-8165.png', '15_promptfoo-8182.png'
+		];
+		const cardBase = 'oss_card/png/';
+
+		// Seeded random for consistent layout
+		function seededRandom(seed) {
+			let s = seed;
+			return function () { s = (s * 16807 + 0) % 2147483647; return s / 2147483647; };
+		}
+
+		// Scatter cards in a container: edges & corners, random rotation
+		function scatterCards(containerId, opts = {}) {
+			const container = document.getElementById(containerId);
+			if (!container) return;
+			const W = 1280, H = 720;
+			const size = opts.size || 160;
+			const opacity = opts.opacity || 0.5;
+			const rand = seededRandom(opts.seed || 42);
+			const imgs = [...cardImages];
+			// shuffle
+			for (let i = imgs.length - 1; i > 0; i--) {
+				const j = Math.floor(rand() * (i + 1));
+				[imgs[i], imgs[j]] = [imgs[j], imgs[i]];
+			}
+			const count = opts.count || imgs.length;
+
+			// Generate positions around edges, avoiding center
+			const positions = [];
+			for (let i = 0; i < count; i++) {
+				let x, y, tries = 0;
+				do {
+					x = rand() * (W - size);
+					y = rand() * (H - size);
+					tries++;
+				} while (
+					tries < 30 &&
+					x > W * 0.2 && x < W * 0.8 - size &&
+					y > H * 0.15 && y < H * 0.85 - size
+				);
+				positions.push({ x, y });
+			}
+
+			positions.slice(0, count).forEach((pos, i) => {
+				const img = document.createElement('img');
+				img.src = cardBase + imgs[i % imgs.length];
+				img.style.width = size + 'px';
+				img.style.left = pos.x + 'px';
+				img.style.top = pos.y + 'px';
+				img.style.opacity = opacity;
+				const rot = (rand() - 0.5) * 24;
+				img.style.transform = 'rotate(' + rot + 'deg)';
+				container.appendChild(img);
+			});
+		}
+
+		// Dense grid for results slide: right panel (960x720), readable cards
+		function mosaicCards(containerId) {
+			const container = document.getElementById(containerId);
+			if (!container) return;
+			const W = 960, H = 720;
+			const rand = seededRandom(77);
+			const imgs = [...cardImages];
+			for (let i = imgs.length - 1; i > 0; i--) {
+				const j = Math.floor(rand() * (i + 1));
+				[imgs[i], imgs[j]] = [imgs[j], imgs[i]];
+			}
+
+			// 5 cols x 3 rows, big enough to read
+			const cols = 5, rows = 3;
+			const gap = 10;
+			const cw = (W - gap * (cols + 1)) / cols;
+			const ch = (H - gap * (rows + 1)) / rows;
+			const size = Math.min(cw, ch);
+			let idx = 0;
+			for (let r = 0; r < rows; r++) {
+				for (let c = 0; c < cols; c++) {
+					const img = document.createElement('img');
+					img.src = cardBase + imgs[idx % imgs.length];
+					img.style.width = size + 'px';
+					img.style.left = (gap + c * (size + gap) + (rand() - 0.5) * 6) + 'px';
+					img.style.top = (gap + r * (size + gap) + (rand() - 0.5) * 6) + 'px';
+					const rot = (rand() - 0.5) * 6;
+					img.style.transform = 'rotate(' + rot + 'deg)';
+					img.style.opacity = 1;
+					img.style.borderRadius = '8px';
+					img.style.boxShadow = '0 2px 8px rgba(0,0,0,0.12)';
+					container.appendChild(img);
+					idx++;
+				}
+			}
+		}
+
+		// Title: marquee rows — top flows right, bottom flows left
+		(function () {
+			const container = document.getElementById('title-cards');
+			if (!container) return;
+			const W = 1280, H = 720;
+			const imgs = [...cardImages];
+			const size = 180;
+			const gap = 14;
+
+			function createMarqueeRow(files, y, direction) {
+				// Duplicate images for seamless loop
+				const doubled = [...files, ...files];
+				const strip = document.createElement('div');
+				strip.style.position = 'absolute';
+				strip.style.top = y + 'px';
+				strip.style.left = '0';
+				strip.style.height = size + 'px';
+				strip.style.display = 'flex';
+				strip.style.gap = gap + 'px';
+				strip.style.willChange = 'transform';
+
+				doubled.forEach((file) => {
+					const img = document.createElement('img');
+					img.src = cardBase + file;
+					img.style.width = size + 'px';
+					img.style.height = 'auto';
+					img.style.borderRadius = '10px';
+					img.style.boxShadow = '0 4px 20px rgba(0,0,0,0.35)';
+					img.style.opacity = '0.45';
+					img.style.flexShrink = '0';
+					strip.appendChild(img);
+				});
+
+				container.appendChild(strip);
+
+				// Animation
+				const totalW = files.length * (size + gap);
+				let offset = direction > 0 ? 0 : -totalW;
+				const speed = 0.3; // px per frame
+
+				function animate() {
+					offset -= speed * direction;
+					if (direction > 0 && offset <= -totalW) offset += totalW;
+					if (direction < 0 && offset >= 0) offset -= totalW;
+					strip.style.transform = 'translateX(' + offset + 'px)';
+					requestAnimationFrame(animate);
+				}
+				animate();
+			}
+
+			createMarqueeRow(imgs.slice(0, 8), 20, 1);      // top row → right
+			createMarqueeRow(imgs.slice(8, 15), H - size - 20, -1); // bottom row ← left
+		})();
+		// Closing: marquee rows like title
+		(function () {
+			const container = document.getElementById('closing-cards');
+			if (!container) return;
+			const W = 1280, H = 720;
+			const imgs = [...cardImages];
+			const size = 160;
+			const gap = 14;
+
+			function createMarqueeRow(files, y, direction) {
+				const doubled = [...files, ...files];
+				const strip = document.createElement('div');
+				strip.style.position = 'absolute';
+				strip.style.top = y + 'px';
+				strip.style.left = '0';
+				strip.style.height = size + 'px';
+				strip.style.display = 'flex';
+				strip.style.gap = gap + 'px';
+				strip.style.willChange = 'transform';
+
+				doubled.forEach((file) => {
+					const img = document.createElement('img');
+					img.src = cardBase + file;
+					img.style.width = size + 'px';
+					img.style.height = 'auto';
+					img.style.borderRadius = '10px';
+					img.style.boxShadow = '0 4px 20px rgba(0,0,0,0.25)';
+					img.style.opacity = '0.35';
+					img.style.flexShrink = '0';
+					strip.appendChild(img);
+				});
+
+				container.appendChild(strip);
+
+				const totalW = files.length * (size + gap);
+				let offset = direction > 0 ? 0 : -totalW;
+				const speed = 0.25;
+
+				function animate() {
+					offset -= speed * direction;
+					if (direction > 0 && offset <= -totalW) offset += totalW;
+					if (direction < 0 && offset >= 0) offset -= totalW;
+					strip.style.transform = 'translateX(' + offset + 'px)';
+					requestAnimationFrame(animate);
+				}
+				animate();
+			}
+
+			createMarqueeRow(imgs.slice(0, 8), 20, -1);      // top row ← left
+			createMarqueeRow(imgs.slice(8, 15), H - size - 20, 1); // bottom row → right
+		})();
+	</script>
+</body>
+</html>
