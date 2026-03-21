@@ -138,8 +138,10 @@ def append_scan_history(
         record["scope"] = scope
     elif scan_type == "diff":
         record["scope"] = "diff"
-    elif scan_type in ("existing", "deep"):
+    elif scan_type == "existing":
         record["scope"] = "smart"
+    elif scan_type == "deep":
+        record["scope"] = "wide"
     elif scan_type == "stress":
         record["scope"] = "wide"
     if depth:
@@ -232,7 +234,7 @@ def compute_scan_depth(base_path: str | Path) -> dict:
 _SCAN_TYPE_TO_AXES = {
     "diff":     {"scope": "diff",  "depth": "default", "lens": "default"},
     "existing": {"scope": "smart", "depth": "default", "lens": "default"},
-    "deep":     {"scope": "smart", "depth": "deep",    "lens": "default"},
+    "deep":     {"scope": "wide",  "depth": "deep",    "lens": "default"},
     "stress":   {"scope": "wide",  "depth": "default", "lens": "stress"},
 }
 
