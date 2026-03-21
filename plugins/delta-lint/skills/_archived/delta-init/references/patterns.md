@@ -1,1 +1,0 @@
-../../delta-lint/references/patterns.md

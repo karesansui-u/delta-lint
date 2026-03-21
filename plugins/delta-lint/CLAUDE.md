@@ -1,20 +1,17 @@
 # delta-lint 開発ガイド
 
-## シンボリックリンク構造（最重要）
+## ソースの正（最重要）
 
-マスター（ファイル編集はここ）:
+**コードの編集は本リポジトリのプラグイン直下で行う:**
 ```
-agi-lab-skills-marketplace/plugins/delta-lint/scripts/
-```
-
-実行時パス（シンボリックリンク。**直接編集するな**）:
-```
-~/.claude/skills/delta-lint/scripts/ → マスターへのリンク
-~/.claude/skills/delta-scan/scripts/ → マスターへのリンク
+<repo>/plugins/delta-lint/scripts/
 ```
 
-ワークフロー内のコマンド（`cd ~/.claude/skills/delta-lint/scripts && python ...`）は実行時パスを使う。
-コード編集はマスターで行い、symlink 経由で実行時に反映される。
+Claude Code にインストール後は `~/.claude/plugins/.../delta-lint/.../scripts/` などにコピーが展開される。`plugin update` で GitHub の最新に追従する。
+
+ワークフロー Markdown に出てくる `cd ~/.claude/skills/delta-lint/scripts` は **ユーザー環境向けの例**。開発時は `plugins/delta-lint/scripts/` に置き換えて実行すればよい。
+
+**Skills の参照文書（重複なし）:** `delta-scan` / `delta-review` それぞれの `SKILL.md` と同階層の `references/` のみ。削除済みの `skills/delta-lint/references/` は触らない。レイアウトの説明は [docs/skills-layout-handoff-for-llms.md](../../docs/skills-layout-handoff-for-llms.md)。
 
 ## アーキテクチャ制約
 

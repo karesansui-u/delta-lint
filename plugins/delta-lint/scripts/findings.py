@@ -232,7 +232,7 @@ def compute_scan_depth(base_path: str | Path) -> dict:
 _SCAN_TYPE_TO_AXES = {
     "diff":     {"scope": "diff",  "depth": "default", "lens": "default"},
     "existing": {"scope": "smart", "depth": "default", "lens": "default"},
-    "deep":     {"scope": "wide",  "depth": "deep",    "lens": "default"},
+    "deep":     {"scope": "smart", "depth": "deep",    "lens": "default"},
     "stress":   {"scope": "wide",  "depth": "default", "lens": "stress"},
 }
 
@@ -1075,20 +1075,31 @@ def _findings_enrich(base_path: str, args) -> None:
     for jsonl_path in findings_dir.glob("*.jsonl"):
         with open(jsonl_path, "r") as fh:
             lines = [l.strip() for l in fh.readlines() if l.strip()]
-        new_lines = []
-        updated = 0
+        # Build latest state per ID from existing lines
+        latest: dict[str, dict] = {}
         for line in lines:
             obj = json.loads(line)
             fid = obj.get("id")
+            if fid:
+                latest[fid] = obj
+        append_lines = []
+        updated = 0
+        for fid, obj in latest.items():
             if fid in enriched_map:
                 enriched = enriched_map[fid]
+                entry = dict(obj)
+                changed = False
                 for key in ("churn_6m", "fix_churn_6m", "fan_out", "total_lines"):
                     if enriched.get(key) and not obj.get(key):
-                        obj[key] = enriched[key]
+                        entry[key] = enriched[key]
+                        changed = True
                         updated += 1
-            new_lines.append(json.dumps(obj, ensure_ascii=False))
-        with open(jsonl_path, "w") as fh:
-            fh.write("\n".join(new_lines) + "\n")
+                if changed:
+                    entry["_updated_at"] = datetime.now().isoformat()
+                    append_lines.append(json.dumps(entry, ensure_ascii=False))
+        if append_lines:
+            with open(jsonl_path, "a") as fh:
+                fh.write("\n".join(append_lines) + "\n")
         updated_total += updated
 
     print(f"Enriched: {before} → {after} findings with git data ({updated_total} fields written)")
@@ -1197,21 +1208,32 @@ def _findings_verify_top(base_path: str, args) -> None:
     for jsonl_path in findings_dir.glob("*.jsonl"):
         with open(jsonl_path, "r") as fh:
             lines = [l.strip() for l in fh.readlines() if l.strip()]
-        new_lines = []
+        # Build latest state per ID
+        latest: dict[str, dict] = {}
         for line in lines:
             obj = json.loads(line)
             fid = obj.get("id")
+            if fid:
+                latest[fid] = obj
+        append_lines = []
+        for fid, obj in latest.items():
             if fid in confirmed_ids and obj.get("status") == "found":
-                obj["status"] = "confirmed"
-                obj["confirmed"] = True
+                entry = dict(obj)
+                entry["status"] = "confirmed"
+                entry["confirmed"] = True
+                entry["_updated_at"] = datetime.now().isoformat()
+                append_lines.append(json.dumps(entry, ensure_ascii=False))
                 status_updates += 1
             elif fid in rejected_ids:
-                obj["status"] = "wontfix"
-                obj["_verify_reason"] = reject_reasons.get(fid, "")
+                entry = dict(obj)
+                entry["status"] = "wontfix"
+                entry["_verify_reason"] = reject_reasons.get(fid, "")
+                entry["_updated_at"] = datetime.now().isoformat()
+                append_lines.append(json.dumps(entry, ensure_ascii=False))
                 status_updates += 1
-            new_lines.append(json.dumps(obj, ensure_ascii=False))
-        with open(jsonl_path, "w") as fh:
-            fh.write("\n".join(new_lines) + "\n")
+        if append_lines:
+            with open(jsonl_path, "a") as fh:
+                fh.write("\n".join(append_lines) + "\n")
 
     # Summary
     print(f"\n{'='*60}", file=sys.stderr)

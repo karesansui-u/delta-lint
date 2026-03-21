@@ -124,7 +124,7 @@ def issue_to_finding(issue: dict, target_files: list[str]) -> dict:
     if any("bug" in l.lower() for l in labels):
         severity = "high"
     if any("critical" in l.lower() or "security" in l.lower() for l in labels):
-        severity = "critical"
+        severity = "high"
 
     file_a = target_files[0] if target_files else ""
     file_b = target_files[1] if len(target_files) > 1 else ""
