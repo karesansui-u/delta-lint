@@ -14,8 +14,8 @@
 ## インストール
 
 ```bash
-/plugin marketplace add karesansui-u/delta-lint
-/plugin install delta-lint@delta-lint-marketplace
+claude plugin marketplace add karesansui-u/delta-lint
+claude plugin install delta-lint@delta-lint
 ```
 
 ## 本ハッカソン OSS貢献実績<br>(7日間) 2026/3/13〜3/20
