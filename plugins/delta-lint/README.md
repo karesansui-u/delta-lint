@@ -4,6 +4,25 @@
 
 スタイルやシンプルなバグではなく、**設計レベルの不整合**（あるモジュールの前提が別のモジュールの振る舞いと矛盾している箇所）を見つけます。
 
+## 1. システム概要
+
+### 核心テーゼ
+
+DeltaLint は **コードモジュール間の構造矛盾（structural contradiction）** を LLM で検出するツール。従来の linter がスタイルや型を見るのに対し、**モジュール間の暗黙の契約違反** を見つける。
+
+「ファイル A の前提がファイル B の実装と矛盾している箇所」— 開発者が合理的にスコープを絞った結果、気づかずに残る設計レベルの不整合を発見する。
+
+### 設計を支配するデータ
+
+63リポジトリ（17K〜133K stars）で検証。
+
+- **検出率**: 62/63（98.4%）で構造矛盾を検出
+- **真陽性率**: 報告101件中92件が真陽性（91%）
+- **マージ率**: 提出29 PR中28件がマージ（96.6%）
+- **非対称コスト**: 偽陰性（見逃し）のコストは偽陽性（誤報）の約29倍
+
+この非対称コスト構造が、2段階検証アーキテクチャの根拠。
+
 ## セットアップ
 
 ### 必須
@@ -83,118 +102,407 @@ python cli.py scan --autofix
 python cli.py scan --backend api
 ```
 
-## 3軸スキャンモデル
+## 2. データフロー
 
-スキャンは **広さ（scope）× 深さ（depth）× 質（lens）** の3軸で制御します。
+### メインパイプライン
+
+```
+Git diff → ファイル選択
+    │
+    ▼
+[Phase 0] retrieval.py — コンテキスト構築
+    │  import 解析 → 1-hop 依存取得
+    │  信頼度による階層化: direct(0.95) / re-export(0.85) / type(0.50)
+    │  [optional] --semantic: LLM で暗黙仮定を抽出 → grep で関連ファイル発見
+    │  [optional] --docs: ドキュメントを仕様契約として追加
+    │
+    ▼
+[Phase 1] detector.py — LLM 検出（高 recall）
+    │  prompts/detect.md をシステムプロンプトとして送信
+    │  10パターン（①-⑩）に基づく検出
+    │  方針: 「30%の確信度でも報告。全部報告し、後で絞る」
+    │
+    ▼
+[Phase 2] verifier.py — LLM 検証（高 precision）
+    │  prompts/verify.md で各 finding を再検証
+    │  本番で到達可能か？意図的な分岐か？を判定
+    │  --no-verify でスキップ可能
+    │
+    ▼
+output.py — フィルタリング
+    │  severity フィルタ + suppress.yml マッチ
+    │  → shown / filtered / suppressed / expired に分類
+    │
+    ▼
+findings.py — 永続化
+    │  JSONL append-only イベントログに追記
+    │  同一IDの後発エントリが最新状態
+    │
+    ▼
+[optional] fixgen.py + debt_loop.py — 自動修正
+       branch 作成 → fix 生成 → regression check → commit → PR
+```
+
+### ステージ別の入出力
+
+| ステージ | モジュール | 入力 | 出力 |
+|---------|-----------|------|------|
+| ファイル選択 | cmd_scan | Git diff / --since / --scope | `list[str]`（相対パス） |
+| コンテキスト構築 | retrieval | ファイルリスト + repo_path | ModuleContext（target/dep/doc + コンテンツ） |
+| LLM検出 | detector | ModuleContext + system prompt | `list[dict]`（raw findings） |
+| LLM検証 | verifier | raw findings + ModuleContext | confirmed / rejected の2リスト |
+| フィルタリング | output + suppress | confirmed + suppress + severity閾値 | FilterResult |
+| 永続化 | findings | shown findings | `.delta-lint/findings/*.jsonl` |
+| スコアリング | scoring + info_theory | findings + git churn + fan_out | roi_score, info_score 付与 |
+| 修正ループ | debt_loop | 優先度ソート済み findings | GitHub PR |
+
+### バッチ実行モデル
+
+コンテキストが40,000文字を超える場合、自分自身をサブプロセスとして再帰呼び出ししてバッチ分割。`ThreadPoolExecutor` で並列実行し、結果は共有 JSONL で集約。プロセス分離により LLM タイムアウトが1バッチに閉じる。
+
+## 3. 主要な設計原則
+
+### 3.1 非対称コスト最適化
+
+- **Phase 1 (detector)**: 「30%の確信でも報告せよ」— recall 最大化
+- **Phase 2 (verifier)**: 「疑わしければ reject」— precision 回復
+- **エスカレーションプロトコル**: 0件で終わりそうなとき3段階エスカレーション（sibling拡大 → 横断契約チェック → 最低確信候補の報告）
+
+### 3.2 ゼロコスト LLM 呼び出し
+
+`claude -p`（サブスク CLI、$0）がデフォルト。API は明示フォールバック。ADR-003 に「$100以上を無駄にした実績」が教訓として記録。
+
+### 3.3 Append-Only イベントログ
+
+JSONL の append-only 設計で3つの要求を同時に満たす:
+
+1. **LLM 非決定性への耐性**（一度見つけたものは消えない）
+2. **ストック型蓄積**（結果がブレても蓄積される）
+3. **Git フレンドリー**（conflict しにくい）
+
+### 3.4 構造ベース ID
+
+`SHA256(repo:sorted(file_a, file_b):pattern)` で ID 生成。LLM が同じ矛盾を別の表現で報告しても同一IDになる。ロジック変更禁止。
+
+### 3.5 4層設定マージ
+
+```
+CLI flags > profile > config.json > defaults
+```
+
+## 4. 検出パターン（10種）
+
+### 構造矛盾（①-⑥）— category="contradiction"、2箇所必須
+
+| # | パターン名 | 検出対象 |
+|---|-----------|---------|
+| ① | Asymmetric Defaults | 入出力パスで同じ値の扱いが異なる（null vs undefined、型強制等） |
+| ② | Semantic Mismatch | 共有名（status, type, code）がモジュール間で異なる意味を持つ |
+| ③ | External Spec Divergence | RFC・言語仕様・ドキュメント記載とコードが乖離 |
+| ④ | Guard Non-Propagation | 一方のパスにはバリデーションがあるが並行パスにはない |
+| ⑤ | Paired-Setting Override | 独立に見える2つの設定が暗黙に干渉 |
+| ⑥ | Lifecycle Ordering | 特定パスで実行順序の前提が崩れる |
+
+### 技術的負債（⑦-⑩）— category="debt"
+
+| # | パターン名 | 検出対象 |
+|---|-----------|---------|
+| ⑦ | Dead Code / Unreachable Path | 未使用のエクスポート、永久OFFのフラグ等（1箇所可） |
+| ⑧ | Duplication Drift | コピペコードの片方だけ更新済み |
+| ⑨ | Interface Mismatch | 呼び出し側と定義側で引数の数・順序・意味が不一致 |
+| ⑩ | Missing Abstraction | 同一ロジックが3箇所以上に散在（1箇所可） |
+
+### メカニズム分類（なぜ矛盾が残るか）
+
+- **copy_divergence (~60%)**: A→B コピー時の不完全な適応
+- **one_sided_evolution (~25%)**: A を改善したが B はスコープ外で放置
+- **independent_collision (~15%)**: A と B が独立に書かれ、暗黙の契約に気づかない
+
+## 5. 3軸スキャンモデル
+
+**scope（広さ）× depth（深さ）× lens（質）= 3×2×3 = 18通り**
 
 | 軸 | 選択肢 | 説明 |
 |----|--------|------|
-| **scope**（広さ） | `diff`（デフォルト） | 変更ファイル + 1-hop 依存 |
+| **scope** | `diff`（デフォルト） | 変更ファイル + 1-hop 依存 |
 | | `smart` | git 履歴ベースのファイル選択（diff 不要） |
-| | `all` | 全ソースファイル |
-| **depth**（深さ） | 指定なし（デフォルト） | 直接の依存のみ |
-| | `deep` | 依存の依存まで辿る深層解析 |
-| **lens**（質） | `default`（デフォルト） | 構造矛盾検査（10パターン） |
+| | `all` | 全ソースファイル（バッチ処理） |
+| **depth** | デフォルト | 直接の依存のみ |
+| | `deep` | 依存チェーンを3ホップまで辿る（各ホップで信頼度 ×0.85 減衰） |
+| **lens** | `default` | 構造矛盾検査（10パターン） |
 | | `stress` | 仮想改修ストレステスト（地雷マップ生成） |
 | | `security` | セキュリティ特化（認証・権限・入力検証） |
 
-全組み合わせ: 3 × 2 × 3 = **18通り**。ダッシュボードの「スキャン状況」パネルで実行済み/未実行が一覧できます。
+### 3つのスキャンパス
 
-## 検出パターン
+| パス | エントリ | パイプライン |
+|------|---------|-------------|
+| 通常スキャン (cmd_scan) | diff → 1-hop依存 → LLM検出 → LLM検証 | 日常の変更チェック |
+| 深層スキャン (cmd_scan_deep) | 正規表現抽出 → 契約グラフ → LLM検証 | WordPress等フック系の構造解析 |
+| ストレステスト (cmd_scan_full) | 構造分析 → 仮想改修生成 → N回スキャン → ヒートマップ | 地雷マップ作成 |
 
-### 構造矛盾（contradiction）
+## 6. モジュール別アーキテクチャ
 
-2つのモジュール間で暗黙の契約が破れている箇所。
+### 6.1 retrieval.py（1651行）— コンテキスト構築
 
-| # | パターン | 例 |
-|---|---------|---|
-| ① | Asymmetric Defaults | 登録時は `null` を受け入れるが表示時は `undefined` を空文字に変換 |
-| ② | Semantic Mismatch | `status: 0` がモジュール A では "pending"、B では "inactive" |
-| ③ | External Spec Divergence | RFC 7230 に準拠すると書いてあるが実装が逸脱 |
-| ④ | Guard Non-Propagation | create エンドポイントにはバリデーションがあるが update にはない |
-| ⑤ | Paired-Setting Override | `timeout=30s` と `retries=5` の組み合わせが上流の制限を超える |
-| ⑥ | Lifecycle Ordering | エラーリカバリパスでは認証ミドルウェアがルートハンドラの後に実行される |
+**責務**: git diff → import 解析 → 依存取得 → LLM に渡すコンテキスト構築
 
-### 技術的負債（structural）
+**3+1 Tier 依存解決**:
 
-放置すると保守コストが増大する、構造的に改善すべき箇所。
+| Tier | 信頼度 | 対象 |
+|------|--------|------|
+| Tier 1 | 0.95 | 同ディレクトリの明示的 import |
+| Sibling | 0.90 | 学習済みの兄弟ペア（sibling_map.yml） |
+| Tier 2 | 0.85 | 相対 import（ディレクトリ横断） |
+| Tier 3 | 0.50 | プロジェクトスコープの名前マッチ |
 
-| # | パターン | 例 |
-|---|---------|---|
-| ⑦ | Dead Code / Unreachable Path | エラーリカバリハンドラが登録されているが対応するエラー型は投げられない |
-| ⑧ | Duplication Drift | コピー元の関数にはバリデーション追加済み、コピー先は未更新 |
-| ⑨ | Interface Mismatch | 定義は `save(data, options?)` だが呼び出し側は3引数で呼んでいる |
-| ⑩ | Missing Abstraction | 同一の条件チェック＋処理が5つのコントローラに散在 |
+MIN_CONFIDENCE(0.50) 未満は除外。
 
-## スコアリング
+- **スマート切り詰め**: head cut ではなく、構造的アウトライン（import + 関数シグネチャ + 先頭/末尾）を保持。module-level context で **Recall 45% → 89%**（実験データ）
+- **14言語の import 抽出**: JS/TS, Python, Go, Rust, PHP, Ruby, Java, Kotlin, C#, C/C++, Swift
+- **マルチホップ**: `--depth deep` で max_hops=3。各ホップで信頼度 ×0.85 減衰。予算超過時はコンテキスト上限を2倍に自動拡張
+- **コンテキスト上限**: MAX_CONTEXT_CHARS=40K, MAX_FILE_CHARS=15K, MAX_DEPS_PER_FILE=5
 
-各 finding に3種類のスコアが付与されます。数値は直感的な桁感になるよう設計されています。
-
-### 負債スコア（debt_score）— 0〜1000
+**データ構造**:
 
 ```
-debt_score = severity × pattern × status × 1000
+ModuleContext:
+  target_files: list[FileContext]   # 変更ファイル（CHANGED）
+  dep_files: list[FileContext]      # 依存ファイル（DEPENDENCY, confidence=N%）
+  doc_files: list[FileContext]      # ドキュメント（specification contract）
 ```
 
-| 例 | severity | pattern | status | スコア |
-|---|----------|---------|--------|-------|
-| high + ① + found | 1.0 | 1.0 | 1.0 | **1000** |
-| medium + ④ + found | 0.6 | 1.0 | 1.0 | **600** |
-| high + ⑧ + submitted | 1.0 | 0.6 | 0.8 | **480** |
-| low + ⑦ + found | 0.3 | 0.3 | 1.0 | **90** |
-| any + merged | — | — | 0.0 | **0** |
+### 6.2 semantic.py（313行）— 意味拡張
 
-merged や wontfix になった finding は score 0。履歴は JSONL に残るが負債としてはカウントしない。
-リポジトリの合計 debt は個別スコアの合算（finding 5件で合計 3,500 等）。
+import 解析では見つからない暗黙の依存を LLM + grep で発見。
 
-### 情報量スコア（info_score）— 0〜数千
+1. diff を LLM に渡し、暗黙の仮定（implicit assumptions）を抽出
+2. 各仮定に付随する grep パターンでコードベースを検索
+3. 発見したファイルを ModuleContext に追加（MAX_SEMANTIC_DEPS=8 件上限）
 
-同一リポジトリ内の finding 分布から「新規性」と「ホットスポット度」を測る。依存・伝播は ROI（fan_out 等）側。
+`--semantic` フラグで有効化。
+
+### 6.3 detector.py（525行）— Phase 1: LLM 検出
+
+**3段バックエンドフォールバック**: `claude -p`(CLI) → Anthropic SDK → 生HTTP
+
+**プロンプト設計（prompts/detect.md）**:
+
+- 10パターン定義 + "Scope-Blind Constraint Check" 戦略
+- エスカレーションプロトコル（0件時の3段階エスカレーション）
+- 経験的事前分布の埋め込み（98.4%のリポで発見される旨）
+- チームは `.delta-lint/detect.md` で完全上書き可能
+- `policy.prompt_append` で追加指示をプロンプト末尾に注入
+
+**パース耐性（4段階）**:
+1. markdown コードブロックから JSON 抽出
+2. 直接 JSON parse
+3. `[...]` ブラケット範囲抽出
+4. raw text を `parse_error: true` で返す
+
+**リトライ**: 最大2回、指数バックオフ（1s, 2s）
+
+### 6.4 verifier.py（299行）— Phase 2: LLM 検証
+
+**5つの検証基準**（すべて満たす場合のみ CONFIRMED）:
+
+1. 両箇所のコードが実在する
+2. クロスモジュール衝突である
+3. 本番環境で到達可能
+4. 意図的な設計ではない
+5. 記述が正確
+
+**出力**: verdict(confirmed/rejected), confidence(0-1), certainty(definite/probable/uncertain), reproducibility
+
+全 findings を1回の LLM 呼び出しでバッチ検証（コスト効率優先）。confidence < 0.7 で reject。バックエンド不可時は全件パススルー（graceful degradation）。
+
+### 6.5 findings.py（1896行）— JSONL 管理 + ダッシュボード
+
+**設計思想**: LLM は非決定的 → append-only で蓄積（ストック型）
+
+**STATUS_META（Single Source of Truth）**:
+
+| ステータス | 意味 | closed | debt_weight |
+|-----------|------|--------|-------------|
+| found | 未トリアージ | No | 1.0 |
+| suspicious | 要調査 | No | 0.9 |
+| confirmed | 確定バグ | No | 1.0 |
+| submitted | PR提出済み | No | 0.8 |
+| merged | 修正済み | Yes | 0.0 |
+| rejected | 却下 | Yes | 0.5 |
+| wontfix | 対応不要 | Yes | 0.0 |
+| duplicate | 重複 | Yes | 0.0 |
+| false_positive | 偽陽性 | Yes | 0.0 |
+
+**重複排除（3層）**:
+
+1. **完全一致**: ファイル×パターン×タイトルからハッシュID → 同一IDスキップ
+2. **言い換え**: タイトルの trigram 類似度 55%以上 → 同一判定
+3. **別パターン同一実体**: コード中エンティティ抽出、60%以上重複 → 統合
+
+**ダッシュボード**: Python `string.Template`（Jinja2 ではない）。テンプレート解決は profile > repo-local > built-in。
+
+### 6.6 scoring.py（458行）+ info_theory.py（302行）— スコアリング
+
+4軸の独立したスコアで優先度を多角的に評価。
+
+#### A. 負債スコア（debt_score）— 0〜1000
 
 ```
-info_score = discovery_value × concentration_factor × 100
+debt_score = severity_weight × pattern_weight × status_multiplier × 1000
 ```
 
-- **discovery_value**: 同パターンの件数 n に対し 1/√n（初出のパターンほど高い）
-- **concentration_factor**: 同ファイルの未解決 findings 数 m に対し log₂(1+m)（問題集中ファイルほど高い）
+「この種のバグがどれくらい深刻か」の静的評価。
 
-**注**: 現状は簡易版のヒューリスティック。将来の予定として、厳密な情報理論（自己情報量 -log₂ P(finding exists) や、修正による条件付きエントロピー減少）の実装を検討中。コードベース状態の確率モデルが必要。
-
-### 解消価値（ROI）— 0〜数千
-
-「このバグを直すとどれだけ得か」の費用対効果。影響が大きく修正が安いほど高スコア。
+#### B. 解消価値（ROI / context_score）— 0〜数千
 
 ```
-roi_score = severity × churn_weight × fan_out_weight / fix_cost × 100
+roi = severity × churn_weight × fan_out_weight / fix_cost × ROI_SCALE(100)
 ```
 
-- **churn_weight**: 0.5〜10.0（月3回以上変更で max。小規模リポでも差が出る）
-- **fan_out_weight**: 1.0〜10.0（5ファイル以上が参照で max）
-- **fix_cost**: パターン別の修正工数（④ガード追加=1.0, ⑩共通化=5.0 等）
+- **churn_weight**: git log からの月次変更頻度（月3回以上で max, 0.5〜10.0）
+- **fan_out_weight**: git grep からの被参照ファイル数（5ファイル以上で max, 1.0〜10.0）
+- **fix_cost**: パターン別修正工数（④ガード追加=1.0, ⑩共通化=5.0）
+- churn/fan_out は `log₂(1+x)` で外れ値を抑制
+- **放置コスト加速**: `age_multiplier = 1 + log₂(1 + days/30) × churn_ratio`
+- **不確実ディスカウント**: certainty=uncertain は roi_score × 0.3
 
-### Chao1 カバレッジ推定
+#### C. 情報量スコア（info_score）— 0〜数千
 
-スキャン履歴から「まだ見つかっていない finding がどれくらいあるか」を種の豊富さ推定（Chao1）で算出。スキャンを重ねるごとにカバレッジ率が上昇。
-
-## 設定
-
-### プロファイル（プリセット）
-
-スキャン設定をまとめた YAML ファイル。チームやユースケースごとに名前付きプリセットを作れます。
-
-```bash
-# ビルトインプロファイルを使う
-python cli.py scan --profile deep       # 全パターン・全重大度・semantic ON
-python cli.py scan -p light             # high のみ・CIゲート向け
-python cli.py scan -p security          # セキュリティ特化
-
-# CLI フラグはプロファイルより優先
-python cli.py scan -p deep --severity medium
+```
+info_score = (1/√n) × log₂(1+m) × INFO_SCALE(100)
 ```
 
-**優先順位**: `CLI フラグ > profile > config.json > デフォルト`
+- n = 同パターンの finding 数（初出ほど高い）
+- m = 同ファイルのオープン finding 数（ホットスポットほど高い）
+- 現状はヒューリスティック。将来的に自己情報量 `-log₂ P(finding exists)` の実装を検討
 
-#### ビルトインプロファイル
+#### D. Chao1 カバレッジ推定
+
+生態学の種の豊かさ推定を応用。`scan_history.jsonl` の singleton/doubleton から未発見 finding 数を推定。95% CI は対数正規近似。
+
+**3層マージ**: `defaults(scoring.py) ← config.json ← profile policy`。指定キーだけ上書き。
+
+### 6.7 suppress.py（305行）— サプレス管理
+
+LLM 出力に依存しないハッシュ設計:
+
+- **finding_hash**: ソート済みファイル + 行番号5行バケット丸めから生成。パターンIDやLLMテキストは使わない
+- **code_hash**: ±10行のコードハッシュ → コード変更時に自動失効
+- **SuppressEntry**: 理由(why)、理由タイプ(domain/technical/preference)、承認者の記録
+
+### 6.8 fixgen.py（262行）+ debt_loop.py（735行）— 自動修正
+
+**fixgen.py**: LLM にソースコード + 矛盾情報を渡し、最小限の修正パッチ（old_code → new_code）を生成。
+
+**debt_loop.py**: 負債解消の自動ループ
+
+- findings を優先度順（info_score + roi_score + severity_bonus）にソート
+- **1 finding = 1 branch = 1 PR** で処理
+- fix 生成 → ローカル適用 → デグレチェック（`delta-scan --scope pr`）→ commit → push → PR
+- 新たな矛盾が生まれたらブロック
+- push 権限なしで `gh repo fork` を自動実行
+- auto-stash: 未コミット変更の退避と復元
+
+### 6.9 stress_test.py — ストレステスト + 地雷マップ
+
+1. **Step 0**: 構造分析（LLM でリポジトリアーキテクチャを理解）
+2. **Step 0.5**: 既存バグスキャン（ホットスポットクラスタの現在の矛盾検出）
+3. **Step 1**: 仮想改修生成（LLM で「こう変更したら？」のシナリオ作成）
+4. **Step 2**: 各仮想改修をスキャン → per-file ヒートマップとして集約
+
+### 6.10 補助モジュール
+
+| モジュール | 責務 |
+|-----------|------|
+| cli_utils.py (771行) | 環境チェック、config/profile 読込、適応的時間窓、ベースライン管理 |
+| cmd_init.py (570行) | リポジトリ初期化（構造分析 + sibling_map 生成） |
+| cache.py (106行) | SHA256(files+content) でスキャン結果キャッシュ。同一コンテキストはLLMスキップ |
+| git_enrichment.py | git churn(6ヶ月) / fan_out 計算。スキャン時に finding へ埋め込み |
+| sibling.py (433行) | finding / git共変更から兄弟ペアを学習 → 次回のコンテキスト構築に反映 |
+| persona_translator.py (230行) | engineer/pm/qa 向けの出力変換（LLM翻訳 + テンプレートフォールバック） |
+| contract_graph.py (420行) | WordPress等フック経由の暗黙依存検出（実験的） |
+| surface_extractor.py (594行) | 正規表現ベースのhook/actionパターン抽出 |
+
+## 7. データモデル
+
+### Finding（JSONL 1行）
+
+```json
+{
+    "id": "dl-a1b2c3d4",
+    "repo": "my-app",
+    "file": "src/handler.ts",
+    "file_b": "src/validator.ts",
+    "severity": "high",
+    "pattern": "①",
+    "title": "...",
+    "description": "...",
+    "status": "found",
+    "category": "contradiction",
+    "taxonomies": {"certainty": "definite", "reproducibility": "always"},
+    "mechanism": "one_sided_evolution",
+    "churn_6m": 15,
+    "fan_out": 8,
+    "contradiction": "...",
+    "impact": "...",
+    "internal_evidence": "..."
+}
+```
+
+### ステータスライフサイクル
+
+```
+found → confirmed → submitted → merged (debt=0)
+                              → rejected (debt=0.5)
+      → false_positive (debt=0)
+      → wontfix (debt=0)
+      → duplicate (debt=0)
+```
+
+### ストレージレイアウト
+
+```
+.delta-lint/
+├── config.json              # リポ固有設定（スコアリング重み含む）
+├── suppress.yml             # サプレス済み findings（理由+期限付き）
+├── sibling_map.yml          # 暗黙契約ペアの学習結果
+├── scan_history.jsonl       # スキャン時系列（Chao1推定用）
+├── cache/                   # context_hash ベースのキャッシュ
+├── findings/
+│   ├── {repo-name}.jsonl    # append-only イベントログ
+│   ├── dashboard.html       # 生成済みダッシュボード
+│   └── _index.md            # サマリー
+├── profiles/                # カスタムプロファイル
+└── landmine_map.json        # リスクヒートマップ
+```
+
+## 8. 設定システム
+
+### 優先順位チェーン
+
+```
+CLI flags > profile (.delta-lint/profiles/<name>.yml) > config.json > defaults (scoring.py)
+```
+
+### Profile の config vs policy
+
+- **config**: 「何を使うか」（モデル、閾値、容量制限）→ argparse フラグに対応
+- **policy**: 「どう動くか」（プロンプト追加指示、無効パターン、スコアリング重み）→ 検出ロジック制御
+
+```yaml
+name: my-profile
+config:
+  severity: medium
+  model: claude-sonnet-4-20250514
+  max_context_chars: 80000
+policy:
+  prompt_append: "追加指示"
+  disabled_patterns: ["⑦", "⑩"]
+  scoring_weights: { ... }
+```
+
+### ビルトインプロファイル
 
 | 名前 | 用途 | severity | semantic | 無効パターン |
 |------|------|----------|----------|-------------|
@@ -202,62 +510,10 @@ python cli.py scan -p deep --severity medium
 | `light` | CI / PR レビュー向け高速チェック | high | OFF | ⑦⑧⑨⑩ |
 | `security` | セキュリティ構造矛盾の重点検出 | low | OFF | ⑦⑩ |
 
-#### カスタムプロファイルの作成
-
-`.delta-lint/profiles/<name>.yml` を作るだけで `--profile <name>` が使えます。
-ビルトインと同名なら repo-local が優先。
-
-```yaml
-# .delta-lint/profiles/onboarding.yml
-name: onboarding
-description: "新人向け — 詳しい説明付き"
-
-config:
-  severity: low
-  semantic: true
-  lang: ja
-
-policy:
-  prompt_append: |
-    Report findings with detailed explanations suitable for
-    someone new to this codebase. Include step-by-step reasoning.
-```
-
-```yaml
-# .delta-lint/profiles/ci-gate.yml
-name: ci-gate
-description: "CI用 — high のみ、検証あり、失敗でブロック"
-
-config:
-  severity: high
-  semantic: false
-
-policy:
-  disabled_patterns: ["⑦", "⑧", "⑨", "⑩"]
-  prompt_append: |
-    Only report findings you are highly confident about.
-    False positives are very costly in CI context.
-```
-
-#### プロファイルのフィールド
-
-| フィールド | 説明 |
-|-----------|------|
-| `name` | プロファイル名（表示用） |
-| `description` | 説明（`--profile nonexistent` 時の候補一覧に使用） |
-| `config.*` | CLI フラグと同じキー（severity, semantic, model, lang, backend, autofix） |
-| `policy.prompt_append` | 検出プロンプトに追加する指示（constraints.yml の prompt_append と結合） |
-| `policy.disabled_patterns` | 無効化するパターン（例: `["⑦", "⑩"]`） |
-| `policy.exclude_paths` | スキャン対象外パス（例: `["vendor/*"]`） |
-| `policy.architecture` | LLM に渡す設計文脈（誤検出削減） |
-| `policy.project_rules` | プロジェクト固有のドメイン知識 |
-
 ### config.json（基本設定）
 
 リポジトリルートに `.delta-lint/config.json` を配置することで、デフォルト動作をカスタマイズできます。
 全フィールド省略可。**CLI フラグが常に config より優先**されます。
-
-### 基本設定
 
 ```json
 {
@@ -268,27 +524,7 @@ policy:
   "verbose": false,
   "semantic": false,
   "persona": "engineer",
-  "autofix": false
-}
-```
-
-| キー | 型 | デフォルト | 説明 |
-|------|----|-----------|------|
-| `lang` | `"ja"` \| `"en"` | `"en"` | 出力言語 |
-| `backend` | `"cli"` \| `"api"` | `"cli"` | LLM バックエンド。`cli` = claude CLI（$0）、`api` = Anthropic API（従量課金） |
-| `severity` | `"high"` \| `"medium"` \| `"low"` | `"high"` | 表示する最小重要度 |
-| `model` | string | `"claude-sonnet-4-20250514"` | 検出に使用する Claude モデル |
-| `verbose` | boolean | `false` | 詳細ログを出力 |
-| `semantic` | boolean | `false` | 意味検索（暗黙の仮定抽出）を有効化。精度が上がるがスキャン時間が増加 |
-| `persona` | `"engineer"` \| `"pm"` \| `"qa"` | config.json 優先 | 出力ペルソナ。CLI 未指定時は config.json の値を使用 |
-| `autofix` | boolean | `false` | 検出した矛盾に対する自動修正コード生成を有効化 |
-
-### スコアリング設定
-
-`config.json` の `"scoring"` セクションで重みをチーム単位でカスタマイズ可能。
-
-```json
-{
+  "autofix": false,
   "scoring": {
     "severity_weight": { "high": 1.0, "medium": 0.6, "low": 0.3 },
     "pattern_weight": { "①": 1.0, "④": 1.0, "⑦": 0.3 },
@@ -298,13 +534,27 @@ policy:
 }
 ```
 
-デフォルト値の確認・エクスポート：
+## 9. 耐障害性設計
 
-```bash
-python cli.py config init                 # config.json にデフォルト値を書き出し
-python cli.py config init --no-interactive  # 対話なしでデフォルト書き出し
-python cli.py config show                 # 現在の設定（デフォルト + オーバーライド）を表示
-```
+| 壊れるもの | 対処 |
+|-----------|------|
+| LLM API（タイムアウト、レート制限） | 指数バックオフリトライ(1s→2s)。CLI → SDK → HTTP の3層フォールバック |
+| LLM 出力フォーマット（JSON が markdown で囲まれる等） | 4段階パーサーで順次試行。部分結果でも抽出 |
+| git 履歴（shallow clone で1件のみ） | ファイルサイズから変更頻度を推定するフォールバック |
+| JSONL の途中行の破損 | 壊れた行スキップ。append-only 設計で部分破損に耐える |
+| 巨大リポジトリ（36,000ファイル） | 10件ごとに途中保存、制限時間40分で中間結果返却 |
+| git なし（zip 展開コード等） | ファイルシステム走査にフォールバック。churn なしでも静的スコアで動作 |
+| Phase 2 バックエンド不可 | 全件パススルー（graceful degradation） |
+
+### LLM 非決定性への多層対処
+
+| 対策 | 実装箇所 |
+|------|---------|
+| 構造ベース ID（LLMテキスト非依存） | findings.py `generate_id()` |
+| Semantic dedup（trigram + entity overlap） | findings.py |
+| 行番号の丸め（5行バケット） | suppress.py |
+| temperature=0 | detector.py, verifier.py |
+| 多段パースフォールバック | detector.py `_parse_response()` |
 
 ## CLI コマンド一覧
 
@@ -317,12 +567,12 @@ python cli.py scan [OPTIONS]
 | フラグ | デフォルト | 説明 |
 |--------|-----------|------|
 | `--repo` | `.` | 対象リポジトリ |
-| `--scope` | `diff` | 広さ: `diff`（変更ファイル）/ `smart`（git履歴優先）/ `all`（全ファイル） |
-| `--depth` | 直接依存 | 深さ: 指定なし（直接依存）/ `deep`（依存の依存まで辿る） |
-| `--lens` | `default` | 質: `default`（構造矛盾検査）/ `stress`（ストレステスト）/ `security`（セキュリティ） |
-| `--profile` / `-p` | なし | スキャンプロファイル（`deep`, `light`, `security` 等） |
+| `--scope` | `diff` | 広さ: `diff` / `smart` / `all` |
+| `--depth` | 直接依存 | 深さ: 指定なし / `deep` |
+| `--lens` | `default` | 質: `default` / `stress` / `security` |
+| `--profile` / `-p` | なし | スキャンプロファイル |
 | `--files` | (git diff) | スキャン対象ファイルを直接指定 |
-| `--docs` | なし | ドキュメントを仕様契約として含む（引数なしで自動発見） |
+| `--docs` | なし | ドキュメントを仕様契約として含む |
 | `--diff-target` | `HEAD` | 差分比較先の git ref |
 | `--severity` | `high` | 表示する最小重要度 |
 | `--format` | `markdown` | 出力形式（`markdown` / `json`） |
@@ -334,10 +584,10 @@ python cli.py scan [OPTIONS]
 | `--watch` | off | ファイル変更監視モード |
 | `--watch-interval` | `3.0` | ウォッチモードのポーリング間隔（秒） |
 | `--autofix` | off | 修正コード自動生成 |
-| `--no-verify` | off | Phase 2 検証をスキップ（高速化、FP率上昇） |
+| `--no-verify` | off | Phase 2 検証をスキップ |
 | `--no-cache` | off | キャッシュを使わず常に LLM 呼び出し |
 | `--no-learn` | off | sibling_map 自動更新をスキップ |
-| `--deep-workers` | `4` | 深層スキャンの並列 LLM 検証ワーカー数 |
+| `--deep-workers` | `4` | 深層スキャンの並列ワーカー数 |
 | `--baseline` | なし | ベースラインとの差分のみ報告 |
 | `--baseline-save` | off | 現在の結果をベースラインとして保存 |
 | `--diff-only` | off | diff 内ファイルに関連する finding のみ表示 |
@@ -382,9 +632,9 @@ python cli.py suppress [OPTIONS]
 |---------|------|
 | `init` | リポジトリの初期化（構造分析 + sibling_map 生成） |
 | `view` | ダッシュボードをブラウザで表示（`--regenerate` で再生成） |
-| `config init` | デフォルト設定を `.delta-lint/config.json` に書き出し（`--no-interactive` 対応） |
+| `config init` | デフォルト設定を `.delta-lint/config.json` に書き出し |
 | `config show` | 現在の設定を表示 |
-| `fix` | finding や GitHub Issue から修正 → デグレチェック → commit → PR（`delta-fix` も同義） |
+| `fix` | finding や GitHub Issue から修正 → デグレチェック → commit → PR |
 
 ## Autofix / Fix
 
@@ -415,11 +665,16 @@ python cli.py fix --repo /path/to/repo --issue 42
 python cli.py fix --repo /path/to/repo --dry-run -v
 ```
 
-`--issue` はIssue本文からファイルパスを自動抽出し、finding互換形式に変換して既存パイプライン（fix生成 → リグレッションチェック → commit → PR）に流します。PRには `Closes #N` が自動付与されます。
+## 10. 統合ポイント
 
-優先度: `info_score + roi_score + severity_bonus`（高い順に処理）
+| 統合先 | 方法 | 用途 |
+|--------|------|------|
+| **Claude Code** | 3 Skill（delta-scan, delta-review, delta-fix） | 対話的スキャン・レビュー・修正 |
+| **GitHub Actions** | action/entrypoint.py | PR 自動レビュー（review/suggest/autofix の3モード） |
+| **CLI** | scripts/cli.py | ローカル開発での直接実行 |
+| **CI/CD** | `cli.py scan -p light` | ゲート（high のみ、`fail_on_findings`） |
 
-## GitHub Actions
+### GitHub Actions
 
 ```yaml
 - uses: your-org/delta-lint@v1
@@ -440,84 +695,62 @@ python cli.py fix --repo /path/to/repo --dry-run -v
 | `comment_on_clean` | `false` | findings 0件でもコメント投稿 |
 | `fail_on_findings` | `false` | findings 検出時にワークフローを失敗させる |
 
-## ディレクトリ構造
+## 11. 設計判断記録（ADR）
 
-DeltaLint はリポジトリ内に `.delta-lint/` ディレクトリを作成します：
+| ADR | 判断 | 理由 |
+|-----|------|------|
+| 001 | retrieval 定数を argparse に露出しない | CLI namespace 汚染防止。profile で制御 |
+| 002 | スコアリングは3層マージ | チーム別カスタマイズと安全なデフォルト |
+| 003 | CLI バックエンド（$0）をデフォルト | コスト最優先。過去に $100+ の浪費実績 |
+| 004 | findings は append-only JSONL | LLM 非決定性への対策 |
+| 005 | テンプレート3段解決 | カスタマイズ性と簡便性の両立 |
+| 006 | ドキュメントを契約面として扱う | コード×ドキュメント矛盾検出 |
+| 007 | Deep scan は max_hops=3 の依存解決 | レガシー scope マッピング |
 
-```
-.delta-lint/
-├── config.json              # 設定（スコアリング重み含む）
-├── suppress.yml             # 抑制した findings
-├── sibling_map.yml          # 学習済みの兄弟ファイルマップ
-├── scan_history.jsonl       # スキャン履歴（Chao1 推定用）
-├── profiles/                # カスタムスキャンプロファイル（--profile で使用）
-│   └── {name}.yml
-├── findings/                # 検出バグの追跡記録（JSONL、append-only）
-│   ├── {repo-name}.jsonl
-│   └── _index.md
-└── landmine_map.json        # 地雷マップ（リスクヒートマップ）
-```
+## 12. 強み
 
-## 見えない自律性 — 人間が設定しなくても動く理由
+1. **仮説検証に基づく設計** — module-level context で Recall 45%→89%、63リポの統計等、実験データに裏付け
+2. **LLM 非決定性への体系的多層防御** — ID, dedup, 丸め, 正規化, パースフォールバック
+3. **ゼロコスト設計** — claude -p + キャッシュ + バッチで実質無料
+4. **自己学習ループ** — finding → sibling_map → 次回のコンテキスト → より高精度な検出
+5. **情報理論的カバレッジ推定** — Chao1 で「まだ何件潜んでいるか」を定量化
+6. **漸進的導入** — `--baseline` で既存バグを無視し、新規のみ CI 検出
+7. **ペルソナ対応** — 同じ finding を engineer / PM / QA それぞれの言語で翻訳
 
-DeltaLint は「スキャンして」の一言で動く。その裏で、以下の判断を自動で行っている。
+## 13. 潜在的弱点 / レビュー観点
 
-### スキャン対象の自律選択
+### アーキテクチャ
 
-全ファイルを毎回スキャンするのは非現実的（36,000ファイルのリポジトリでは数日かかる）。かといって差分だけでは既存のバグを見逃す。DeltaLint はリポジトリの状態を見て、どこをスキャンするかを自分で決める。
+1. **2フェーズパイプラインのコスト効率**: Phase 1（高recall）→ Phase 2（高precision）の分離は妥当か？1回の精密な呼び出しでトークン効率を上げる方法はないか？
+2. **1-hop 依存の制限**: デフォルト1-hop、deep で3-hop。コンテキスト爆発防止と見逃しのトレードオフは適切か？
+3. **Tier 3 依存解決の精度**: 同名ファイルが複数存在する大規模リポで誤った依存を拾うリスク
 
-| やっていること | 具体例 | なぜ必要か |
-|--------------|--------|-----------|
-| コミット頻度に応じた時間窓の調整 | コミット10件未満の新しいリポ → 全履歴を見る。1日10件のリポ → 直近3ヶ月に絞る | 小さいリポに「直近3ヶ月」は短すぎる。大きいリポに「全履歴」は遅すぎる |
-| 変更頻度 × 依存数 × 最終更新日でファイルを優先度順に並べる | 毎週変更され、10ファイルから参照されている `auth.ts` → 最優先。半年触られていない `utils/format.ts` → 後回し | よく変わるファイルほどバグが入りやすい。多くから参照されるファイルほど影響が大きい |
-| ディレクトリを横断して均等にサンプリング | `src/api/` から3件、`src/db/` から3件、`src/ui/` から3件 | アルファベット順だと `api/` に偏り、`ui/` 以降が永遠にスキャンされない |
-| 2回目以降は過去の結果を踏まえてスキャン先を変える | 初回: 広くランダム。2回目: 前回ホットスポットだった箇所 + まだ見ていない領域 | 毎回ランダムでは収束しない。前回の結果だけだと視野が狭まる |
-| 新しい発見がなくなったら自動停止 | 直近20回のスキャンで新規ファイルが見つからない → 「もう十分」と判断して終了 | 完了条件を人間が決める必要がない |
+### データ・スケーラビリティ
 
-### 比較対象の自律構成
+4. **append-only JSONL のスケーラビリティ**: thousands of findings が蓄積した場合の読み取り性能。インデックスや GC の必要性は？
+5. **JSONL のロック機構**: 並列バッチで race condition の可能性
+6. **fan_out 計算**: git grep ベースで大規模モノレポではタイムアウト可能性
+7. **キャッシュ無効化の粗さ**: prompt や constraints の変更がキャッシュキーに含まれない
 
-構造矛盾は「AとBの間の食い違い」。AとBの組み合わせを間違えると、無関係なファイルを比較して誤検出を出すか、関連するファイルを見落とす。
+### スコアリング・情報理論
 
-| やっていること | 具体例 | なぜ必要か |
-|--------------|--------|-----------|
-| 依存の距離に応じて信頼度を減衰させる | 同じディレクトリ内の依存 → 信頼度95%。3ホップ先の間接依存 → 信頼度61% | 遠い依存まで同じ重みで見ると、無関係なファイルを比較して誤検出が増える |
-| import文に書かれない暗黙の依存を検出する | WordPressの `add_action('save_post', ...)` → フック経由で別ファイルに依存 | フレームワークはイベントやフックで結合する。import解析だけでは見えない |
-| 一緒に変更されるファイルのパターンを学習する | `handler.ts` と `validator.ts` が過去20回中18回同時に変更されている → 暗黙の兄弟 | git履歴が教える「隠れた結合」は、コードの構造からは読み取れない |
-| LLMに渡す文脈量を動的に調整する | 直接依存だけなら80K文字。間接依存まで辿るなら160K文字まで自動拡張 | 足りないと見逃す。多すぎるとLLMの精度が落ちる。ちょうどいい量を自分で決める |
+8. **Chao1 推定の妥当性**: 種の豊富さ推定をバグ発見に転用する前提条件（独立同分布サンプリング等）は成立しているか？
+9. **スコアリングの4軸**: debt_score / roi / info_score / Chao1 が独立に存在する意味と、統合指標の必要性
+10. **重複排除の閾値**: trigram 類似度55%、エンティティ重複60%の根拠と調整可能性
+11. **Phase 1/2 の閾値固定**: confidence_threshold=0.7 がリポジトリ特性に応じた適応機構なし
 
-### 壊れても動き続ける設計
+### コード品質
 
-LLMは応答しないことがある。gitの履歴が浅いことがある。ファイルが壊れていることがある。それでも結果を返す。
+12. **findings.py の責務過剰**: 1896行で JSONL管理〜ダッシュボードHTML生成まで。SRP の観点から分離余地
+13. **cmd_scan.py のコード重複**: PR/wide/smart/diff の4モードで `run_batch()` がほぼ同一実装（⑧ Duplication Drift に該当）
+14. **ステータス遷移制約なし**: STATUS_META に許可遷移が未定義。`found → merged` が validation なしに可能
+15. **テストカバレッジ**: scoring.py や info_theory.py のような純粋計算ロジックにユニットテストが不足
 
-| 壊れるもの | 起きること | 対処 |
-|-----------|-----------|------|
-| LLMのAPI | タイムアウト、レート制限、一時障害 | 指数バックオフで自動リトライ（1秒→2秒）。CLI → SDK → HTTP の3層フォールバック |
-| LLMの出力フォーマット | JSON のはずが markdown で囲まれる、配列が途中で切れる | 4段階のパーサーが順に試行。完全なJSONが取れなくても部分的な結果を抽出 |
-| gitの履歴 | CI環境の shallow clone で `git log` が1件しかない | ファイルサイズから変更頻度を推定するフォールバック |
-| 記録ファイル | JSONL の途中の行が壊れている | 壊れた行をスキップして残りを読む。append-only 設計で部分破損に耐える |
-| 巨大リポジトリ | 36,000ファイルでスキャンが終わらない | 10件ごとに途中結果を保存。全体の制限時間（40分）を超えたら中間結果で終了 |
-| gitがない | zip展開されたコード、git未初期化のディレクトリ | ファイルシステム走査にフォールバック。churn情報なしでも静的スコアで動作 |
+### その他
 
-### 同じバグを二度報告しない
-
-スキャンを繰り返すと、同じ問題を別の言い方で何度も検出する。人間には同じに見えるものを、ツールは別物として報告してしまう。
-
-| 重複の種類 | 具体例 | 検出方法 |
-|-----------|--------|---------|
-| 完全一致 | 同じファイル × 同じパターン × 同じタイトル | ファイル・パターン・タイトルからハッシュIDを生成。同一IDは自動スキップ |
-| 言い換え | 「未使用のデフォルト値」と「使われないデフォルト設定」 | タイトルのtrigram類似度が55%以上なら同一と判定 |
-| 別パターンで同じ実体 | パターン①で `twitter_profile` の型不一致、パターン⑨で `twitter_profile` のインターフェース不整合 | コード中のエンティティ（関数名・ファイル名）を抽出し、60%以上重複なら統合 |
-
-### 優先度を自分で決める
-
-見つけたバグを全部同じ重要度で報告しても、人間は対処できない。DeltaLint は4つの独立した軸で優先度を計算する。
-
-| 軸 | 測っていること | 高スコアの例 | 低スコアの例 |
-|----|--------------|-------------|-------------|
-| 負債係数 | この種のバグはどれくらい深刻か | severity=high × パターン①（前提の非対称） | severity=low × パターン⑦（デッドコード） |
-| 解消価値 (ROI) | 直したらどれくらい得か | 月5回変更 × 20ファイルから参照 × 修正が簡単 | 半年放置 × 参照なし × 大規模リファクタ必要 |
-| 情報量 | この発見は新しい知見か | 初めて見つかったパターン × 問題が集中するファイル | 同じパターンの10件目 × 孤立したファイル |
-| 未発見推定 | まだ見つかっていないバグはあと何件か | 毎回新しいバグが見つかる（カバレッジ不足） | 最近のスキャンでは既知の再検出ばかり（収束） |
+16. **contract_graph（実験的）**: WordPress 以外への汎化可能性と、通常スキャンパスとの統合の見通し
+17. **sibling_map の自動学習**: git 履歴から暗黙の結合を学習する仕組みの精度と偽陽性率
+18. **プロンプトエンジニアリング**: Escalation Protocol、非対称コスト（29:1）、経験的事前分布のプロンプト埋め込みは効果的か？
 
 ## ライセンス
 
