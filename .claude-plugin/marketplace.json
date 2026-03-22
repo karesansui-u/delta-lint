@@ -4,14 +4,14 @@
     "name": "sunagawa"
   },
   "metadata": {
-    "description": "delta-lint: コード変更の構造矛盾を自律検出し、Issue起票・PR作成まで自走するエージェント",
-    "version": "0.1.1"
+    "description": "構造矛盾検出器 — モジュール間の暗黙の前提の食い違いを LLM で検出。設計レベルの不整合にフォーカス（スタイルLintや単純バグではない）。",
+    "version": "0.1.2"
   },
   "plugins": [
     {
       "name": "delta-lint",
       "source": "./plugins/delta-lint",
-      "description": "リポジトリの構造矛盾を自律的に検出・修正・PR作成まで行うコード品質エージェント",
+      "description": "ソースコード間の構造矛盾（暗黙の前提の不整合）をLLM分析で検出するツール。scan / suppress / findings / stress-test。必要に応じて修正〜PR まで。",
       "version": "0.1.1",
       "category": "code-quality",
       "tags": ["linter", "agent", "code-review", "structural-contradiction"]
