@@ -9,7 +9,7 @@
 **機能改修したら、想定してない箇所でバグが発生しました。**<br>
 **—— DeltaLint はその「壊れる場所」を特定します。**
 
-> <a href="https://karesansui-u.github.io/delta-lint/docs/presentation.html" target="_blank"><b>スライドを見る</b></a>
+> <a href="https://karesansui-u.github.io/delta-lint/docs/presentation.html" target="_blank"><b>スライドを見る</b></a> | <a href="https://drive.google.com/drive/folders/1OKwfcW8_fegY85vuFFrXD9HypR2f3_8w?usp=sharing" target="_blank"><b>デモ動画を見る</b></a>
 
 ## インストール
 
