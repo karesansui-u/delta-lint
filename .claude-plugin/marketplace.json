@@ -12,7 +12,7 @@
       "name": "delta-lint",
       "source": "./plugins/delta-lint",
       "description": "ソースコード間の構造矛盾（暗黙の前提の不整合）をLLM分析で検出するツール。scan / suppress / findings / stress-test。必要に応じて修正〜PR まで。",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "category": "code-quality",
       "tags": ["linter", "agent", "code-review", "structural-contradiction"]
     }
