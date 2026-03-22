@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>DeltaLint — Architecture Diagram</title>
+	<style>
+		@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+		* { margin: 0; padding: 0; box-sizing: border-box; }
+
+		:root {
+			--navy: #0a2540;
+			--text: #425466;
+			--text-light: #68778d;
+			--purple: #635bff;
+			--purple-light: #7a73ff;
+			--purple-bg: #f0eeff;
+			--cyan: #00d4aa;
+			--cyan-bg: #e6faf5;
+			--bg: #ffffff;
+			--bg-alt: #f6f9fc;
+			--border: #e3e8ee;
+			--red: #ff5b6a;
+			--orange: #f5a623;
+			--green: #24b47e;
+		}
+
+		body {
+			font-family: 'Inter', 'Noto Sans JP', -apple-system, sans-serif;
+			background: var(--bg-alt);
+			color: var(--text);
+			line-height: 1.6;
+		}
+
+		.header {
+			background: var(--navy);
+			color: white;
+			padding: 2rem 3rem;
+			text-align: center;
+		}
+		.header h1 {
+			font-size: 2rem;
+			font-weight: 800;
+			letter-spacing: -0.02em;
+		}
+		.header h1 span { color: var(--cyan); }
+		.header p {
+			color: rgba(255,255,255,0.6);
+			margin-top: 0.3rem;
+			font-size: 0.95rem;
+		}
+
+		.nav {
+			background: white;
+			border-bottom: 1px solid var(--border);
+			padding: 0.8rem 3rem;
+			display: flex;
+			gap: 0.5rem;
+			justify-content: center;
+			position: sticky;
+			top: 0;
+			z-index: 100;
+		}
+		.nav button {
+			background: var(--bg-alt);
+			border: 1px solid var(--border);
+			padding: 0.5rem 1.2rem;
+			border-radius: 6px;
+			cursor: pointer;
+			font-family: inherit;
+			font-size: 0.85rem;
+			font-weight: 500;
+			color: var(--text);
+			transition: all 0.2s;
+		}
+		.nav button:hover { border-color: var(--purple); color: var(--purple); }
+		.nav button.active {
+			background: var(--purple);
+			color: white;
+			border-color: var(--purple);
+		}
+
+		.container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+
+		.section {
+			display: none;
+			animation: fadeIn 0.3s ease;
+		}
+		.section.active { display: block; }
+
+		@keyframes fadeIn {
+			from { opacity: 0; transform: translateY(8px); }
+			to { opacity: 1; transform: translateY(0); }
+		}
+
+		.card {
+			background: white;
+			border-radius: 12px;
+			border: 1px solid var(--border);
+			padding: 2rem;
+			margin-bottom: 1.5rem;
+			box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+		}
+		.card h2 {
+			color: var(--navy);
+			font-size: 1.3rem;
+			margin-bottom: 1rem;
+			font-weight: 700;
+		}
+		.card h3 {
+			color: var(--navy);
+			font-size: 1rem;
+			margin: 1.2rem 0 0.5rem;
+			font-weight: 600;
+		}
+
+		/* ─── Pipeline ─── */
+		.pipeline {
+			display: flex;
+			flex-direction: column;
+			gap: 0;
+			position: relative;
+			padding: 1rem 0;
+		}
+		.pipeline-stage {
+			display: flex;
+			align-items: stretch;
+			gap: 1.2rem;
+		}
+		.stage-line {
+			width: 4px;
+			background: linear-gradient(180deg, var(--purple) 0%, var(--cyan) 100%);
+			border-radius: 2px;
+			position: relative;
+			margin-left: 1.5rem;
+			flex-shrink: 0;
+		}
+		.stage-dot {
+			width: 16px;
+			height: 16px;
+			border-radius: 50%;
+			position: absolute;
+			left: -6px;
+			top: 1.5rem;
+			border: 3px solid white;
+			box-shadow: 0 0 0 2px var(--purple);
+		}
+		.stage-content {
+			flex: 1;
+			padding: 1rem 0;
+		}
+		.stage-badge {
+			display: inline-block;
+			font-size: 0.7rem;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.05em;
+			padding: 0.2rem 0.6rem;
+			border-radius: 4px;
+			margin-bottom: 0.4rem;
+		}
+		.badge-blue { background: #e8f0fe; color: #1a73e8; }
+		.badge-purple { background: var(--purple-bg); color: var(--purple); }
+		.badge-green { background: var(--cyan-bg); color: #0d9373; }
+		.badge-orange { background: #fff3e0; color: #e65100; }
+		.badge-red { background: #fce4ec; color: #c62828; }
+		.badge-gray { background: #f0f0f0; color: #555; }
+
+		.stage-title {
+			font-weight: 700;
+			color: var(--navy);
+			font-size: 1.05rem;
+		}
+		.stage-module {
+			font-family: 'JetBrains Mono', monospace;
+			font-size: 0.8rem;
+			color: var(--purple);
+			margin-top: 0.1rem;
+		}
+		.stage-desc {
+			color: var(--text-light);
+			font-size: 0.88rem;
+			margin-top: 0.3rem;
+			line-height: 1.5;
+		}
+		.stage-detail {
+			margin-top: 0.5rem;
+			font-size: 0.82rem;
+			color: var(--text);
+			background: var(--bg-alt);
+			padding: 0.6rem 0.8rem;
+			border-radius: 6px;
+			border-left: 3px solid var(--purple);
+		}
+
+		/* ─── 3-Axis ─── */
+		.axis-grid {
+			display: grid;
+			grid-template-columns: 1fr 1fr 1fr;
+			gap: 1.2rem;
+			margin-top: 1rem;
+		}
+		.axis-card {
+			background: white;
+			border: 2px solid var(--border);
+			border-radius: 10px;
+			padding: 1.5rem;
+			text-align: center;
+			transition: all 0.2s;
+		}
+		.axis-card:hover { border-color: var(--purple); transform: translateY(-2px); }
+		.axis-icon {
+			font-size: 2rem;
+			margin-bottom: 0.5rem;
+		}
+		.axis-name {
+			font-weight: 700;
+			color: var(--navy);
+			font-size: 1.1rem;
+		}
+		.axis-options {
+			margin-top: 0.8rem;
+			text-align: left;
+		}
+		.axis-option {
+			display: flex;
+			align-items: center;
+			gap: 0.5rem;
+			padding: 0.4rem 0;
+			border-bottom: 1px solid #f0f0f0;
+			font-size: 0.85rem;
+		}
+		.axis-option:last-child { border-bottom: none; }
+		.axis-option code {
+			font-family: 'JetBrains Mono', monospace;
+			background: var(--bg-alt);
+			padding: 0.15rem 0.4rem;
+			border-radius: 3px;
+			font-size: 0.8rem;
+			color: var(--purple);
+			white-space: nowrap;
+		}
+		.combo-formula {
+			text-align: center;
+			padding: 1.5rem;
+			font-size: 1.3rem;
+			font-weight: 700;
+			color: var(--navy);
+		}
+		.combo-formula span { color: var(--purple); }
+
+		/* ─── Module Map ─── */
+		.module-grid {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 1rem;
+			margin-top: 1rem;
+		}
+		.module-item {
+			display: flex;
+			align-items: flex-start;
+			gap: 0.8rem;
+			padding: 1rem;
+			background: white;
+			border: 1px solid var(--border);
+			border-radius: 8px;
+			transition: all 0.2s;
+		}
+		.module-item:hover { border-color: var(--purple); box-shadow: 0 2px 8px rgba(99,91,255,0.1); }
+		.module-icon {
+			width: 40px;
+			height: 40px;
+			border-radius: 8px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 1.1rem;
+			flex-shrink: 0;
+		}
+		.module-info { flex: 1; }
+		.module-name {
+			font-family: 'JetBrains Mono', monospace;
+			font-weight: 600;
+			font-size: 0.85rem;
+			color: var(--navy);
+		}
+		.module-role {
+			font-size: 0.8rem;
+			color: var(--text-light);
+			margin-top: 0.1rem;
+		}
+		.module-lines {
+			font-size: 0.7rem;
+			color: var(--text-light);
+			font-family: 'JetBrains Mono', monospace;
+		}
+
+		/* ─── Scoring ─── */
+		.score-cards {
+			display: grid;
+			grid-template-columns: repeat(4, 1fr);
+			gap: 1rem;
+			margin-top: 1rem;
+		}
+		.score-card {
+			background: white;
+			border: 1px solid var(--border);
+			border-radius: 10px;
+			padding: 1.2rem;
+			text-align: center;
+			border-top: 3px solid var(--purple);
+		}
+		.score-card:nth-child(2) { border-top-color: var(--cyan); }
+		.score-card:nth-child(3) { border-top-color: var(--orange); }
+		.score-card:nth-child(4) { border-top-color: var(--green); }
+		.score-label {
+			font-size: 0.75rem;
+			text-transform: uppercase;
+			letter-spacing: 0.05em;
+			color: var(--text-light);
+			font-weight: 600;
+		}
+		.score-name {
+			font-size: 1.1rem;
+			font-weight: 700;
+			color: var(--navy);
+			margin: 0.3rem 0;
+		}
+		.score-formula {
+			font-family: 'JetBrains Mono', monospace;
+			font-size: 0.72rem;
+			color: var(--purple);
+			background: var(--bg-alt);
+			padding: 0.3rem 0.5rem;
+			border-radius: 4px;
+			margin-top: 0.4rem;
+			word-break: break-all;
+		}
+		.score-desc {
+			font-size: 0.78rem;
+			color: var(--text-light);
+			margin-top: 0.4rem;
+		}
+
+		/* ─── Fault Tolerance ─── */
+		.ft-grid {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 1rem;
+			margin-top: 1rem;
+		}
+		.ft-item {
+			padding: 1rem;
+			background: var(--bg-alt);
+			border-radius: 8px;
+			border-left: 3px solid var(--cyan);
+		}
+		.ft-item h4 {
+			font-size: 0.9rem;
+			color: var(--navy);
+			margin-bottom: 0.3rem;
+		}
+		.ft-item p {
+			font-size: 0.82rem;
+			color: var(--text-light);
+		}
+		.ft-item code {
+			font-family: 'JetBrains Mono', monospace;
+			background: white;
+			padding: 0.1rem 0.3rem;
+			border-radius: 3px;
+			font-size: 0.78rem;
+		}
+
+		/* ─── Patterns ─── */
+		.pattern-table {
+			width: 100%;
+			border-collapse: collapse;
+			margin-top: 0.8rem;
+			font-size: 0.85rem;
+		}
+		.pattern-table th {
+			text-align: left;
+			padding: 0.6rem 0.8rem;
+			background: var(--navy);
+			color: white;
+			font-weight: 600;
+			font-size: 0.8rem;
+		}
+		.pattern-table th:first-child { border-radius: 6px 0 0 0; }
+		.pattern-table th:last-child { border-radius: 0 6px 0 0; }
+		.pattern-table td {
+			padding: 0.5rem 0.8rem;
+			border-bottom: 1px solid var(--border);
+		}
+		.pattern-table tr:hover td { background: var(--bg-alt); }
+		.pattern-num {
+			font-weight: 700;
+			color: var(--purple);
+			font-size: 1rem;
+		}
+
+		/* ─── Data Flow Diagram (SVG-like) ─── */
+		.flow-diagram {
+			position: relative;
+			padding: 2rem 0;
+		}
+		.flow-row {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 0.8rem;
+			margin-bottom: 0.3rem;
+		}
+		.flow-arrow {
+			text-align: center;
+			color: var(--purple);
+			font-size: 1.2rem;
+			margin: 0.2rem 0;
+		}
+		.flow-box {
+			padding: 0.6rem 1.2rem;
+			border-radius: 8px;
+			font-size: 0.85rem;
+			font-weight: 600;
+			text-align: center;
+			min-width: 180px;
+		}
+		.flow-input {
+			background: #e8f0fe;
+			color: #1a73e8;
+			border: 1px solid #b8d4fe;
+		}
+		.flow-phase {
+			background: var(--purple-bg);
+			color: var(--purple);
+			border: 2px solid var(--purple);
+		}
+		.flow-output {
+			background: var(--cyan-bg);
+			color: #0d9373;
+			border: 1px solid #a8e6cf;
+		}
+		.flow-optional {
+			background: #fff3e0;
+			color: #e65100;
+			border: 1px dashed #ffb74d;
+		}
+		.flow-label {
+			font-size: 0.72rem;
+			color: var(--text-light);
+			text-align: center;
+			margin-top: -0.2rem;
+			margin-bottom: 0.1rem;
+		}
+
+		/* ─── Responsive ─── */
+		@media (max-width: 900px) {
+			.axis-grid, .module-grid, .ft-grid { grid-template-columns: 1fr; }
+			.score-cards { grid-template-columns: 1fr 1fr; }
+		}
+		@media (max-width: 600px) {
+			.score-cards { grid-template-columns: 1fr; }
+			.container { padding: 1rem; }
+		}
+	</style>
+</head>
+<body>
+
+<div class="header">
+	<h1>δ <span>DeltaLint</span> Architecture</h1>
+	<p>構造矛盾検出器 — モジュール間の暗黙の契約違反を LLM で検出</p>
+</div>
+
+<div class="nav">
+	<button class="active" onclick="show('pipeline')">パイプライン</button>
+	<button onclick="show('axis')">3軸モデル</button>
+	<button onclick="show('modules')">モジュール構成</button>
+	<button onclick="show('scoring')">スコアリング</button>
+	<button onclick="show('patterns')">検出パターン</button>
+	<button onclick="show('fault')">耐障害性</button>
+</div>
+
+<div class="container">
+
+	<!-- ════════════ PIPELINE ════════════ -->
+	<div id="pipeline" class="section active">
+		<div class="card">
+			<h2>2段階検出パイプライン</h2>
+			<p style="font-size:0.88rem; color:var(--text-light); margin-bottom:1.5rem;">
+				偽陰性コスト ≈ 29× 偽陽性コスト → Phase 1 で広く拾い、Phase 2 で絞る
+			</p>
+
+			<div class="flow-diagram">
+				<!-- Input -->
+				<div class="flow-row">
+					<div class="flow-box flow-input">📂 Git diff / --since / --scope</div>
+				</div>
+				<div class="flow-arrow">▼</div>
+				<div class="flow-label">変更ファイル特定</div>
+
+				<!-- Phase 0 -->
+				<div class="flow-row">
+					<div class="flow-box flow-phase">Phase 0 — retrieval.py</div>
+					<div class="flow-box flow-optional" style="min-width:140px;">--semantic</div>
+				</div>
+				<div class="flow-label">コンテキスト構築 · import解析 → 1-hop依存 → 4Tier信頼度</div>
+				<div class="flow-arrow">▼</div>
+
+				<!-- Phase 1 -->
+				<div class="flow-row">
+					<div class="flow-box flow-phase" style="border-color:var(--red); background:#fce4ec; color:#c62828;">
+						Phase 1 — detector.py
+					</div>
+				</div>
+				<div class="flow-label">LLM検出 · 高Recall（30%の確信でも報告）· 10パターン</div>
+				<div class="flow-arrow">▼</div>
+
+				<!-- Phase 2 -->
+				<div class="flow-row">
+					<div class="flow-box flow-phase" style="border-color:var(--green); background:var(--cyan-bg); color:#0d9373;">
+						Phase 2 — verifier.py
+					</div>
+					<div class="flow-box flow-optional" style="min-width:140px;">--no-verify</div>
+				</div>
+				<div class="flow-label">LLM検証 · 5基準（実在/クロスモジュール/到達可能/非意図的/正確）</div>
+				<div class="flow-arrow">▼</div>
+
+				<!-- Filter -->
+				<div class="flow-row">
+					<div class="flow-box flow-output">output.py — フィルタリング</div>
+				</div>
+				<div class="flow-label">severity + suppress.yml → shown / filtered / suppressed / expired</div>
+				<div class="flow-arrow">▼</div>
+
+				<!-- Persist -->
+				<div class="flow-row">
+					<div class="flow-box flow-output" style="background:#e8f5e9; border-color:#66bb6a;">
+						findings.py — JSONL永続化
+					</div>
+				</div>
+				<div class="flow-label">append-only · 3層重複排除 · ダッシュボード生成</div>
+				<div class="flow-arrow">▼</div>
+
+				<!-- Optional Fix -->
+				<div class="flow-row">
+					<div class="flow-box flow-optional">--autofix: fixgen.py + debt_loop.py</div>
+				</div>
+				<div class="flow-label">branch → fix → regression check → commit → PR</div>
+			</div>
+		</div>
+
+		<!-- Batch Model -->
+		<div class="card">
+			<h2>バッチ実行モデル</h2>
+			<div style="display:flex; gap:1.5rem; align-items:center; flex-wrap:wrap;">
+				<div style="flex:1; min-width:250px;">
+					<div class="flow-row" style="justify-content:flex-start;">
+						<div class="flow-box flow-input" style="min-width:120px;">コンテキスト</div>
+						<span style="font-size:0.85rem; color:var(--text-light);">&gt; 40K chars?</span>
+					</div>
+					<div class="flow-arrow" style="text-align:left; margin-left:4rem;">▼ Yes</div>
+					<div class="flow-row" style="justify-content:flex-start;">
+						<div class="flow-box flow-phase" style="min-width:120px;">バッチ分割</div>
+					</div>
+					<div class="flow-arrow" style="text-align:left; margin-left:4rem;">▼</div>
+					<div class="flow-row" style="justify-content:flex-start; gap:0.4rem;">
+						<div class="flow-box flow-output" style="min-width:80px; padding:0.4rem 0.6rem;">Batch 1</div>
+						<div class="flow-box flow-output" style="min-width:80px; padding:0.4rem 0.6rem;">Batch 2</div>
+						<div class="flow-box flow-output" style="min-width:80px; padding:0.4rem 0.6rem;">Batch N</div>
+					</div>
+					<div class="flow-label" style="text-align:left;">ThreadPoolExecutor で並列 → 共有JSONL集約</div>
+				</div>
+				<div style="flex:1; min-width:250px;">
+					<div class="ft-item">
+						<h4>プロセス分離</h4>
+						<p>サブプロセスとして再帰呼び出し。LLM タイムアウトが1バッチに閉じる。他バッチへの影響なし。</p>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- ════════════ 3-AXIS ════════════ -->
+	<div id="axis" class="section">
+		<div class="card">
+			<h2>3軸スキャンモデル</h2>
+			<div class="combo-formula">
+				scope <span>×</span> depth <span>×</span> lens <span>=</span> 3 × 2 × 3 <span>= 18通り</span>
+			</div>
+
+			<div class="axis-grid">
+				<!-- Scope -->
+				<div class="axis-card">
+					<div class="axis-icon">🔭</div>
+					<div class="axis-name">Scope（広さ）</div>
+					<div class="axis-options">
+						<div class="axis-option">
+							<code>diff</code>
+							<span>変更ファイル + 1-hop依存</span>
+						</div>
+						<div class="axis-option">
+							<code>smart</code>
+							<span>git履歴ベースのファイル選択</span>
+						</div>
+						<div class="axis-option">
+							<code>all</code>
+							<span>全ソースファイル（バッチ処理）</span>
+						</div>
+					</div>
+				</div>
+
+				<!-- Depth -->
+				<div class="axis-card">
+					<div class="axis-icon">🔬</div>
+					<div class="axis-name">Depth（深さ）</div>
+					<div class="axis-options">
+						<div class="axis-option">
+							<code>default</code>
+							<span>直接の依存のみ（1-hop）</span>
+						</div>
+						<div class="axis-option">
+							<code>deep</code>
+							<span>3ホップまで辿る（×0.85減衰）</span>
+						</div>
+					</div>
+				</div>
+
+				<!-- Lens -->
+				<div class="axis-card">
+					<div class="axis-icon">🎯</div>
+					<div class="axis-name">Lens（質）</div>
+					<div class="axis-options">
+						<div class="axis-option">
+							<code>default</code>
+							<span>構造矛盾（10パターン）</span>
+						</div>
+						<div class="axis-option">
+							<code>stress</code>
+							<span>仮想改修 → 地雷マップ</span>
+						</div>
+						<div class="axis-option">
+							<code>security</code>
+							<span>認証・権限・入力検証</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- 3 Scan Paths -->
+		<div class="card">
+			<h2>3つのスキャンパス</h2>
+			<div class="module-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+				<div class="module-item" style="flex-direction:column; text-align:center;">
+					<div class="module-icon" style="background:var(--purple-bg); width:100%; height:auto; padding:0.8rem; border-radius:8px; margin-bottom:0.5rem;">
+						<span style="font-size:0.9rem; font-weight:700; color:var(--purple);">通常スキャン</span>
+					</div>
+					<div class="module-role" style="text-align:left;">
+						diff → 1-hop依存<br>
+						→ LLM検出<br>
+						→ LLM検証<br>
+						<span style="color:var(--purple); font-weight:600;">日常の変更チェック</span>
+					</div>
+				</div>
+				<div class="module-item" style="flex-direction:column; text-align:center;">
+					<div class="module-icon" style="background:#fff3e0; width:100%; height:auto; padding:0.8rem; border-radius:8px; margin-bottom:0.5rem;">
+						<span style="font-size:0.9rem; font-weight:700; color:#e65100;">深層スキャン</span>
+					</div>
+					<div class="module-role" style="text-align:left;">
+						正規表現抽出<br>
+						→ 契約グラフ構築<br>
+						→ LLM検証<br>
+						<span style="color:#e65100; font-weight:600;">フック系の構造解析</span>
+					</div>
+				</div>
+				<div class="module-item" style="flex-direction:column; text-align:center;">
+					<div class="module-icon" style="background:var(--cyan-bg); width:100%; height:auto; padding:0.8rem; border-radius:8px; margin-bottom:0.5rem;">
+						<span style="font-size:0.9rem; font-weight:700; color:#0d9373;">ストレステスト</span>
+					</div>
+					<div class="module-role" style="text-align:left;">
+						構造分析<br>
+						→ 仮想改修生成<br>
+						→ N回スキャン → 集約<br>
+						<span style="color:#0d9373; font-weight:600;">地雷マップ作成</span>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- ════════════ MODULES ════════════ -->
+	<div id="modules" class="section">
+		<div class="card">
+			<h2>モジュール構成</h2>
+			<p style="font-size:0.85rem; color:var(--text-light); margin-bottom:1rem;">
+				scripts/ 配下の主要モジュール。色はパイプラインでの役割を示す。
+			</p>
+
+			<!-- Core Pipeline -->
+			<h3>コアパイプライン</h3>
+			<div class="module-grid">
+				<div class="module-item">
+					<div class="module-icon" style="background:#e8f0fe;">📋</div>
+					<div class="module-info">
+						<div class="module-name">cli.py</div>
+						<div class="module-role">CLI エントリポイント（argparse + サブコマンド）</div>
+						<div class="module-lines">1,127行</div>
+					</div>
+				</div>
+				<div class="module-item">
+					<div class="module-icon" style="background:#e8f0fe;">⚡</div>
+					<div class="module-info">
+						<div class="module-name">cmd_scan.py</div>
+						<div class="module-role">scan コマンド群（scan, deep, full, watch）</div>
+						<div class="module-lines">1,778行</div>
+					</div>
+				</div>
+				<div class="module-item">
+					<div class="module-icon" style="background:var(--purple-bg);">🔍</div>
+					<div class="module-info">
+						<div class="module-name">retrieval.py</div>
+						<div class="module-role">コンテキスト構築（import解析 → 4Tier依存）</div>
+						<div class="module-lines">1,651行</div>
+					</div>
+				</div>
+				<div class="module-item">
+					<div class="module-icon" style="background:#fce4ec;">🎯</div>
+					<div class="module-info">
+						<div class="module-name">detector.py</div>
+						<div class="module-role">Phase 1: LLM検出（高recall, 3段バックエンド）</div>
+						<div class="module-lines">525行</div>
+					</div>
+				</div>
+				<div class="module-item">
+					<div class="module-icon" style="background:var(--cyan-bg);">✅</div>
+					<div class="module-info">
+						<div class="module-name">verifier.py</div>
+						<div class="module-role">Phase 2: LLM検証（5基準, confidence&lt;0.7→reject）</div>
+						<div class="module-lines">299行</div>
+					</div>
+				</div>
+				<div class="module-item">
+					<div class="module-icon" style="background:var(--cyan-bg);">📊</div>
+					<div class="module-info">
+						<div class="module-name">output.py</div>
+						<div class="module-role">フィルタリング + 表示フォーマット</div>
+						<div class="module-lines">—</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Data & Scoring -->
+			<h3>データ & スコアリング</h3>
+			<div class="module-grid">
+				<div class="module-item">
+					<div class="module-icon" style="background:#e8f5e9;">💾</div>
+					<div class="module-info">
+						<div class="module-name">findings.py</div>
+						<div class="module-role">JSONL管理 + 3層重複排除 + ダッシュボード生成</div>
+						<div class="module-lines">1,896行</div>
+					</div>
+				</div>
+				<div class="module-item">
+					<div class="module-icon" style="background:#e8f5e9;">📈</div>
+					<div class="module-info">
+						<div class="module-name">scoring.py</div>
+						<div class="module-role">debt_score + ROI（唯一の重み定義元）</div>
+						<div class="module-lines">458行</div>
+					</div>
+				</div>
+				<div class="module-item">
+					<div class="module-icon" style="background:#e8f5e9;">🧮</div>
+					<div class="module-info">
+						<div class="module-name">info_theory.py</div>
+						<div class="module-role">surprise × entropy + Chao1カバレッジ推定</div>
+						<div class="module-lines">302行</div>
+					</div>
+				</div>
+				<div class="module-item">
+					<div class="module-icon" style="background:#e8f5e9;">🚫</div>
+					<div class="module-info">
+						<div class="module-name">suppress.py</div>
+						<div class="module-role">サプレス管理（ハッシュベース, 自動失効）</div>
+						<div class="module-lines">305行</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Auto Fix -->
+			<h3>自動修正</h3>
+			<div class="module-grid">
+				<div class="module-item">
+					<div class="module-icon" style="background:#fff3e0;">🔧</div>
+					<div class="module-info">
+						<div class="module-name">fixgen.py</div>
+						<div class="module-role">LLM修正パッチ生成（old_code → new_code）</div>
+						<div class="module-lines">262行</div>
+					</div>
+				</div>
+				<div class="module-item">
+					<div class="module-icon" style="background:#fff3e0;">🔄</div>
+					<div class="module-info">
+						<div class="module-name">debt_loop.py</div>
+						<div class="module-role">負債解消ループ（1finding=1branch=1PR）</div>
+						<div class="module-lines">735行</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Analysis -->
+			<h3>解析 & 拡張</h3>
+			<div class="module-grid">
+				<div class="module-item">
+					<div class="module-icon" style="background:#f3e5f5;">🧠</div>
+					<div class="module-info">
+						<div class="module-name">semantic.py</div>
+						<div class="module-role">暗黙の仮定抽出（LLM + grep）</div>
+						<div class="module-lines">313行</div>
+					</div>
+				</div>
+				<div class="module-item">
+					<div class="module-icon" style="background:#f3e5f5;">💣</div>
+					<div class="module-info">
+						<div class="module-name">stress_test.py</div>
+						<div class="module-role">仮想改修 × N → ヒートマップ集約</div>
+						<div class="module-lines">1,842行</div>
+					</div>
+				</div>
+				<div class="module-item">
+					<div class="module-icon" style="background:#f3e5f5;">👫</div>
+					<div class="module-info">
+						<div class="module-name">sibling.py</div>
+						<div class="module-role">暗黙の兄弟ペア学習 → コンテキスト強化</div>
+						<div class="module-lines">433行</div>
+					</div>
+				</div>
+				<div class="module-item">
+					<div class="module-icon" style="background:#f3e5f5;">🕸️</div>
+					<div class="module-info">
+						<div class="module-name">contract_graph.py</div>
+						<div class="module-role">フック経由の暗黙依存検出（実験的）</div>
+						<div class="module-lines">420行</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Support -->
+			<h3>サポート</h3>
+			<div class="module-grid">
+				<div class="module-item">
+					<div class="module-icon" style="background:#f0f0f0;">⚙️</div>
+					<div class="module-info">
+						<div class="module-name">cli_utils.py</div>
+						<div class="module-role">環境チェック, config/profile読込, ベースライン</div>
+						<div class="module-lines">771行</div>
+					</div>
+				</div>
+				<div class="module-item">
+					<div class="module-icon" style="background:#f0f0f0;">🚀</div>
+					<div class="module-info">
+						<div class="module-name">cmd_init.py</div>
+						<div class="module-role">リポジトリ初期化（構造分析 + sibling_map）</div>
+						<div class="module-lines">570行</div>
+					</div>
+				</div>
+				<div class="module-item">
+					<div class="module-icon" style="background:#f0f0f0;">📦</div>
+					<div class="module-info">
+						<div class="module-name">cache.py</div>
+						<div class="module-role">SHA256ベースのスキャンキャッシュ</div>
+						<div class="module-lines">106行</div>
+					</div>
+				</div>
+				<div class="module-item">
+					<div class="module-icon" style="background:#f0f0f0;">📝</div>
+					<div class="module-info">
+						<div class="module-name">git_enrichment.py</div>
+						<div class="module-role">git churn(6ヶ月) / fan_out 計算</div>
+						<div class="module-lines">—</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- ════════════ SCORING ════════════ -->
+	<div id="scoring" class="section">
+		<div class="card">
+			<h2>4軸スコアリングシステム</h2>
+			<p style="font-size:0.85rem; color:var(--text-light); margin-bottom:1rem;">
+				4つの独立した軸で優先度を多角的に評価。3層マージ: defaults ← config.json ← profile
+			</p>
+
+			<div class="score-cards">
+				<div class="score-card">
+					<div class="score-label">静的評価</div>
+					<div class="score-name">debt_score</div>
+					<div class="score-formula">sev × pattern × status × 1000</div>
+					<div class="score-desc">バグの深刻度（0〜1000）</div>
+				</div>
+				<div class="score-card">
+					<div class="score-label">修正価値</div>
+					<div class="score-name">ROI</div>
+					<div class="score-formula">sev × churn × fan_out / fix_cost × 100</div>
+					<div class="score-desc">修正の費用対効果</div>
+				</div>
+				<div class="score-card">
+					<div class="score-label">情報量</div>
+					<div class="score-name">info_score</div>
+					<div class="score-formula">(1/√n) × log₂(1+m) × 100</div>
+					<div class="score-desc">初出ほど高い驚き度</div>
+				</div>
+				<div class="score-card">
+					<div class="score-label">カバレッジ</div>
+					<div class="score-name">Chao1</div>
+					<div class="score-formula">S_obs + f₁²/(2×f₂)</div>
+					<div class="score-desc">未発見finding数の推定</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="card">
+			<h2>スコアリング補正</h2>
+			<div class="ft-grid">
+				<div class="ft-item">
+					<h4>churn_weight</h4>
+					<p>git log からの月次変更頻度。<code>log₂(1+x)</code> で外れ値抑制。月3回以上で max（0.5〜10.0）</p>
+				</div>
+				<div class="ft-item">
+					<h4>fan_out_weight</h4>
+					<p>git grep からの被参照ファイル数。5ファイル以上で max（1.0〜10.0）</p>
+				</div>
+				<div class="ft-item">
+					<h4>放置コスト加速</h4>
+					<p><code>1 + log₂(1 + days/30) × churn_ratio</code> — 放置期間 × 変更頻度で加速</p>
+				</div>
+				<div class="ft-item">
+					<h4>不確実ディスカウント</h4>
+					<p><code>certainty=uncertain</code> は roi_score × 0.3 に減額</p>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- ════════════ PATTERNS ════════════ -->
+	<div id="patterns" class="section">
+		<div class="card">
+			<h2>検出パターン（10種）</h2>
+
+			<h3 style="margin-top:0;">構造矛盾（①-⑥）— 2箇所必須</h3>
+			<table class="pattern-table">
+				<thead>
+					<tr>
+						<th>#</th>
+						<th>パターン名</th>
+						<th>検出対象</th>
+						<th>メカニズム</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td><span class="pattern-num">①</span></td>
+						<td>Asymmetric Defaults</td>
+						<td>入出力パスで同じ値の扱いが異なる</td>
+						<td><span class="stage-badge badge-purple">copy_divergence</span></td>
+					</tr>
+					<tr>
+						<td><span class="pattern-num">②</span></td>
+						<td>Semantic Mismatch</td>
+						<td>共有名がモジュール間で異なる意味</td>
+						<td><span class="stage-badge badge-purple">copy_divergence</span></td>
+					</tr>
+					<tr>
+						<td><span class="pattern-num">③</span></td>
+						<td>External Spec Divergence</td>
+						<td>RFC・言語仕様とコードが乖離</td>
+						<td><span class="stage-badge badge-orange">one_sided_evolution</span></td>
+					</tr>
+					<tr>
+						<td><span class="pattern-num">④</span></td>
+						<td>Guard Non-Propagation</td>
+						<td>並行パスでバリデーション欠落</td>
+						<td><span class="stage-badge badge-orange">one_sided_evolution</span></td>
+					</tr>
+					<tr>
+						<td><span class="pattern-num">⑤</span></td>
+						<td>Paired-Setting Override</td>
+						<td>独立に見える2設定が暗黙に干渉</td>
+						<td><span class="stage-badge badge-blue">independent_collision</span></td>
+					</tr>
+					<tr>
+						<td><span class="pattern-num">⑥</span></td>
+						<td>Lifecycle Ordering</td>
+						<td>実行順序の前提が崩れる</td>
+						<td><span class="stage-badge badge-blue">independent_collision</span></td>
+					</tr>
+				</tbody>
+			</table>
+
+			<h3>技術的負債（⑦-⑩）</h3>
+			<table class="pattern-table">
+				<thead>
+					<tr>
+						<th>#</th>
+						<th>パターン名</th>
+						<th>検出対象</th>
+						<th>箇所数</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td><span class="pattern-num">⑦</span></td>
+						<td>Dead Code / Unreachable Path</td>
+						<td>未使用エクスポート、永久OFFフラグ</td>
+						<td>1箇所可</td>
+					</tr>
+					<tr>
+						<td><span class="pattern-num">⑧</span></td>
+						<td>Duplication Drift</td>
+						<td>コピペコードの片方だけ更新</td>
+						<td>2箇所</td>
+					</tr>
+					<tr>
+						<td><span class="pattern-num">⑨</span></td>
+						<td>Interface Mismatch</td>
+						<td>呼び出し側と定義側で引数不一致</td>
+						<td>2箇所</td>
+					</tr>
+					<tr>
+						<td><span class="pattern-num">⑩</span></td>
+						<td>Missing Abstraction</td>
+						<td>同一ロジックが3箇所以上に散在</td>
+						<td>1箇所可</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+
+		<div class="card">
+			<h2>メカニズム分布</h2>
+			<div style="display:flex; gap:1rem; margin-top:0.5rem;">
+				<div style="flex:6; background:var(--purple-bg); padding:1rem; border-radius:8px; text-align:center;">
+					<div style="font-size:1.5rem; font-weight:800; color:var(--purple);">~60%</div>
+					<div style="font-size:0.8rem; color:var(--purple); font-weight:600;">copy_divergence</div>
+					<div style="font-size:0.75rem; color:var(--text-light);">A→Bコピー時の不完全な適応</div>
+				</div>
+				<div style="flex:2.5; background:#fff3e0; padding:1rem; border-radius:8px; text-align:center;">
+					<div style="font-size:1.5rem; font-weight:800; color:#e65100;">~25%</div>
+					<div style="font-size:0.8rem; color:#e65100; font-weight:600;">one_sided_evolution</div>
+					<div style="font-size:0.75rem; color:var(--text-light);">片方だけ改善</div>
+				</div>
+				<div style="flex:1.5; background:#e8f0fe; padding:1rem; border-radius:8px; text-align:center;">
+					<div style="font-size:1.5rem; font-weight:800; color:#1a73e8;">~15%</div>
+					<div style="font-size:0.8rem; color:#1a73e8; font-weight:600;">independent_collision</div>
+					<div style="font-size:0.75rem; color:var(--text-light);">独立開発の衝突</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- ════════════ FAULT TOLERANCE ════════════ -->
+	<div id="fault" class="section">
+		<div class="card">
+			<h2>耐障害性設計</h2>
+			<p style="font-size:0.85rem; color:var(--text-light); margin-bottom:1rem;">
+				LLM は不安定 → 「壊れても最善を尽くす」設計
+			</p>
+
+			<div class="ft-grid">
+				<div class="ft-item">
+					<h4>3段 LLM フォールバック</h4>
+					<p><code>claude -p</code> ($0) → Anthropic SDK → raw HTTP。CLI不可でもAPI、APIも不可ならHTTP直叩き</p>
+				</div>
+				<div class="ft-item">
+					<h4>4段 JSON パーサー</h4>
+					<p>markdownブロック抽出 → 直接parse → <code>[...]</code>ブラケット抽出 → rawテキスト（parse_error: true）</p>
+				</div>
+				<div class="ft-item">
+					<h4>Verifier 不可時パススルー</h4>
+					<p>Phase 2 が失敗 → Phase 1 結果を全件通過。精度は下がるが検出は止めない（graceful degradation）</p>
+				</div>
+				<div class="ft-item">
+					<h4>バッチ分離</h4>
+					<p>サブプロセス再帰呼び出し。1バッチのタイムアウトが全体に波及しない。失敗バッチは警告のみ</p>
+				</div>
+				<div class="ft-item">
+					<h4>自動環境構築</h4>
+					<p>依存未インストール → <code>npm install</code> / <code>pip install</code> / <code>brew install</code> を自動実行。全滅でもdry-runで動作</p>
+				</div>
+				<div class="ft-item">
+					<h4>サプレス自動失効</h4>
+					<p>コード変更で <code>code_hash</code> 不一致 → サプレスが自動的に無効化。再レビューを強制</p>
+				</div>
+				<div class="ft-item">
+					<h4>3層重複排除</h4>
+					<p>完全一致ハッシュ → trigram類似度55% → エンティティ重複60%。LLMの表現揺れを吸収</p>
+				</div>
+				<div class="ft-item">
+					<h4>0件エスカレーション</h4>
+					<p>検出0件時の3段階: sibling拡大 → 横断契約チェック → 最低確信候補の報告。黙って0件を返さない</p>
+				</div>
+			</div>
+		</div>
+
+		<div class="card">
+			<h2>設定システム（4層マージ）</h2>
+			<div style="display:flex; gap:0.5rem; align-items:center; justify-content:center; flex-wrap:wrap; padding:1rem 0;">
+				<div class="flow-box flow-phase" style="min-width:120px;">CLI flags</div>
+				<span style="font-size:1.2rem; color:var(--purple); font-weight:700;">&gt;</span>
+				<div class="flow-box flow-optional" style="min-width:120px;">Profile</div>
+				<span style="font-size:1.2rem; color:var(--purple); font-weight:700;">&gt;</span>
+				<div class="flow-box flow-output" style="min-width:120px;">config.json</div>
+				<span style="font-size:1.2rem; color:var(--purple); font-weight:700;">&gt;</span>
+				<div class="flow-box flow-input" style="min-width:120px;">Defaults</div>
+			</div>
+			<p style="font-size:0.85rem; color:var(--text-light); text-align:center;">
+				明示的に指定された上位が常に勝つ。指定されたキーだけ上書き。
+			</p>
+
+			<div class="ft-grid" style="margin-top:1rem;">
+				<div class="ft-item">
+					<h4>config（何を使うか）</h4>
+					<p>モデル、閾値、容量制限、severity。argparse のフラグに対応。</p>
+				</div>
+				<div class="ft-item">
+					<h4>policy（どう動くか）</h4>
+					<p>プロンプト追加指示、無効化パターン、スコアリング重み、テンプレート。</p>
+				</div>
+			</div>
+		</div>
+	</div>
+
+</div>
+
+<script>
+function show(id) {
+	document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+	document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+	document.getElementById(id).classList.add('active');
+	event.target.classList.add('active');
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 300" font-family="'Inter','Helvetica Neue',Arial,sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M1,1 L7,4 L1,7" fill="none" stroke="#635bff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="840" height="300" rx="12" fill="#fff"/>
+  <rect width="840" height="300" rx="12" fill="none" stroke="#e3e8ee" stroke-width="1"/>
+
+  <!-- Title -->
+  <text x="420" y="28" text-anchor="middle" fill="#0a2540" font-size="15" font-weight="800" letter-spacing="-0.3">自律的なリグレッションバグ検知ワークフロー</text>
+  <text x="420" y="44" text-anchor="middle" fill="#8898aa" font-size="9.5">各フェーズが追加の指示なしで自走する — 検出も改修もそれぞれ完遂</text>
+
+  <!-- ═══ Pipeline: Left → Right (2 phases) ═══ -->
+
+  <!-- Phase label: delta-scan -->
+  <text x="24" y="62" fill="#635bff" font-size="8.5" font-weight="700" letter-spacing="0.5">delta-scan</text>
+
+  <!-- Step 1 -->
+  <rect x="24" y="70" width="116" height="58" rx="8" fill="#f6f9fc" stroke="#e3e8ee" stroke-width="1"/>
+  <rect x="24" y="70" width="116" height="3" rx="1.5" fill="#635bff"/>
+  <text x="82" y="90" text-anchor="middle" fill="#0a2540" font-size="9.5" font-weight="700">対象ファイル選定</text>
+  <text x="82" y="104" text-anchor="middle" fill="#8898aa" font-size="7.5">変更・履歴・全件から選択</text>
+  <text x="82" y="116" text-anchor="middle" fill="#8898aa" font-size="7.5">関連ファイルを自動収集</text>
+
+  <line x1="142" y1="99" x2="158" y2="99" stroke="#635bff" stroke-width="1.2" marker-end="url(#a)"/>
+
+  <!-- Step 2 -->
+  <rect x="160" y="70" width="108" height="58" rx="8" fill="#f6f9fc" stroke="#e3e8ee" stroke-width="1"/>
+  <rect x="160" y="70" width="108" height="3" rx="1.5" fill="#ff5b6a"/>
+  <text x="214" y="90" text-anchor="middle" fill="#0a2540" font-size="9.5" font-weight="700">広く検出</text>
+  <text x="214" y="104" text-anchor="middle" fill="#8898aa" font-size="7.5">10パターンで矛盾を</text>
+  <text x="214" y="116" text-anchor="middle" fill="#8898aa" font-size="7.5">網羅的にスキャン</text>
+
+  <line x1="270" y1="99" x2="286" y2="99" stroke="#635bff" stroke-width="1.2" marker-end="url(#a)"/>
+
+  <!-- Step 3 -->
+  <rect x="288" y="70" width="108" height="58" rx="8" fill="#f6f9fc" stroke="#e3e8ee" stroke-width="1"/>
+  <rect x="288" y="70" width="108" height="3" rx="1.5" fill="#00d4aa"/>
+  <text x="342" y="90" text-anchor="middle" fill="#0a2540" font-size="9.5" font-weight="700">厳しく検証</text>
+  <text x="342" y="104" text-anchor="middle" fill="#8898aa" font-size="7.5">5つの基準で再検証し</text>
+  <text x="342" y="116" text-anchor="middle" fill="#8898aa" font-size="7.5">誤報を除去</text>
+
+  <line x1="398" y1="99" x2="414" y2="99" stroke="#635bff" stroke-width="1.2" marker-end="url(#a)"/>
+
+  <!-- Step 4 -->
+  <rect x="416" y="70" width="108" height="58" rx="8" fill="#f6f9fc" stroke="#e3e8ee" stroke-width="1"/>
+  <rect x="416" y="70" width="108" height="3" rx="1.5" fill="#0a2540"/>
+  <text x="470" y="86" text-anchor="middle" fill="#0a2540" font-size="9.5" font-weight="700">採点・可視化</text>
+  <text x="470" y="100" text-anchor="middle" fill="#8898aa" font-size="7.5">深刻度 × 変更頻度で採点</text>
+  <text x="470" y="112" text-anchor="middle" fill="#8898aa" font-size="7.5">ダッシュボードを自動生成</text>
+
+  <!-- Phase separator -->
+  <line x1="540" y1="64" x2="540" y2="134" stroke="#e3e8ee" stroke-width="1" stroke-dasharray="4,3"/>
+
+  <!-- Phase label: delta-fix -->
+  <text x="556" y="62" fill="#f5a623" font-size="8.5" font-weight="700" letter-spacing="0.5">delta-fix</text>
+
+  <!-- Step 5 -->
+  <rect x="556" y="70" width="126" height="58" rx="8" fill="#f6f9fc" stroke="#e3e8ee" stroke-width="1"/>
+  <rect x="556" y="70" width="126" height="3" rx="1.5" fill="#f5a623"/>
+  <text x="619" y="90" text-anchor="middle" fill="#0a2540" font-size="9.5" font-weight="700">修正コード生成</text>
+  <text x="619" y="104" text-anchor="middle" fill="#8898aa" font-size="7.5">バグごとに最小限の</text>
+  <text x="619" y="116" text-anchor="middle" fill="#8898aa" font-size="7.5">修正パッチを自動生成</text>
+
+  <line x1="684" y1="99" x2="700" y2="99" stroke="#f5a623" stroke-width="1.2" marker-end="url(#a)"/>
+
+  <!-- Step 6 -->
+  <rect x="702" y="70" width="114" height="58" rx="8" fill="#f6f9fc" stroke="#e3e8ee" stroke-width="1"/>
+  <rect x="702" y="70" width="114" height="3" rx="1.5" fill="#f5a623"/>
+  <text x="759" y="90" text-anchor="middle" fill="#0a2540" font-size="9.5" font-weight="700">PR作成</text>
+  <text x="759" y="104" text-anchor="middle" fill="#8898aa" font-size="7.5">デグレチェック後</text>
+  <text x="759" y="116" text-anchor="middle" fill="#8898aa" font-size="7.5">1バグ=1PRで提出</text>
+
+  <!-- ═══ Autonomy Section — mapped to 3 criteria ═══ -->
+  <line x1="24" y1="142" x2="816" y2="142" stroke="#e3e8ee" stroke-width="1"/>
+
+  <!-- Section header -->
+  <text x="420" y="165" text-anchor="middle" fill="#0a2540" font-size="12" font-weight="800">自律性を支える設計</text>
+
+  <!-- 3 columns: 完遂力 / 自己修復 / 自己解決 -->
+
+  <!-- Column 1: 完遂力 -->
+  <rect x="24" y="180" width="260" height="110" rx="8" fill="#f6f9fc" stroke="#e3e8ee" stroke-width="1"/>
+  <rect x="24" y="180" width="260" height="3" rx="1.5" fill="#635bff"/>
+  <text x="154" y="200" text-anchor="middle" fill="#635bff" font-size="10" font-weight="700">完遂力</text>
+  <text x="154" y="214" text-anchor="middle" fill="#8898aa" font-size="8">一度お願いしたら最後まで進める</text>
+
+  <circle cx="44" cy="236" r="3" fill="#635bff"/>
+  <text x="54" y="239" fill="#425466" font-size="8">検出も改修も、それぞれ最後まで自走して完了する</text>
+
+  <circle cx="44" cy="254" r="3" fill="#635bff"/>
+  <text x="54" y="257" fill="#425466" font-size="8">大量ファイルはバッチ分割して並列実行</text>
+
+  <circle cx="44" cy="272" r="3" fill="#635bff"/>
+  <text x="54" y="275" fill="#425466" font-size="8">結果が0件でも3段階で検索範囲を自動拡大</text>
+
+  <!-- Column 2: 自己修復 -->
+  <rect x="294" y="180" width="250" height="110" rx="8" fill="#f6f9fc" stroke="#e3e8ee" stroke-width="1"/>
+  <rect x="294" y="180" width="250" height="3" rx="1.5" fill="#00d4aa"/>
+  <text x="419" y="200" text-anchor="middle" fill="#00997a" font-size="10" font-weight="700">自己修復</text>
+  <text x="419" y="214" text-anchor="middle" fill="#8898aa" font-size="8">エラーが起きても自分で立て直す</text>
+
+  <circle cx="314" cy="236" r="3" fill="#00d4aa"/>
+  <text x="324" y="239" fill="#425466" font-size="8">LLM応答が壊れる → 4段階パーサーで部分抽出</text>
+
+  <circle cx="314" cy="254" r="3" fill="#00d4aa"/>
+  <text x="324" y="257" fill="#425466" font-size="8">APIがタイムアウト → 3層フォールバックで別経路</text>
+
+  <circle cx="314" cy="272" r="3" fill="#00d4aa"/>
+  <text x="324" y="275" fill="#425466" font-size="8">途中で落ちても記録済み分はログに残る</text>
+
+  <!-- Column 3: 自己解決 -->
+  <rect x="554" y="180" width="262" height="110" rx="8" fill="#f6f9fc" stroke="#e3e8ee" stroke-width="1"/>
+  <rect x="554" y="180" width="262" height="3" rx="1.5" fill="#f5a623"/>
+  <text x="685" y="200" text-anchor="middle" fill="#c48500" font-size="10" font-weight="700">自己解決</text>
+  <text x="685" y="214" text-anchor="middle" fill="#8898aa" font-size="8">足りない情報は自分で調べに行く</text>
+
+  <circle cx="574" cy="236" r="3" fill="#f5a623"/>
+  <text x="584" y="239" fill="#425466" font-size="8">依存が未導入 → 自動でインストールして起動</text>
+
+  <circle cx="574" cy="254" r="3" fill="#f5a623"/>
+  <text x="584" y="257" fill="#425466" font-size="8">関連ファイルが不明 → git履歴や暗黙の仮定から発見</text>
+
+  <circle cx="574" cy="272" r="3" fill="#f5a623"/>
+  <text x="584" y="275" fill="#425466" font-size="8">LLMの表現揺れ → 3層の重複判定で同一と認識</text>
+
+</svg>

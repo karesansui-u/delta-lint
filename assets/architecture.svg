@@ -1,0 +1,166 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360" font-family="'Inter','Helvetica Neue',Arial,sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a2540"/>
+      <stop offset="100%" stop-color="#0f2d4a"/>
+    </linearGradient>
+    <linearGradient id="pipe" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#635bff"/>
+      <stop offset="100%" stop-color="#00d4aa"/>
+    </linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="2" result="g"/><feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="720" height="360" rx="12" fill="url(#bg)"/>
+
+  <!-- Title -->
+  <text x="360" y="30" text-anchor="middle" fill="#fff" font-size="14" font-weight="700" letter-spacing="0.5">δ DeltaLint — Architecture</text>
+
+  <!-- ═══ Left: Pipeline ═══ -->
+  <text x="130" y="56" text-anchor="middle" fill="#00d4aa" font-size="10" font-weight="600">PIPELINE</text>
+
+  <!-- Pipe line -->
+  <rect x="128" y="68" width="4" height="252" rx="2" fill="url(#pipe)" opacity="0.4"/>
+
+  <!-- Stage: Git diff -->
+  <circle cx="130" cy="80" r="5" fill="#4285f4" filter="url(#glow)"/>
+  <rect x="148" y="68" width="120" height="24" rx="5" fill="#1a2f4a" stroke="#4285f4" stroke-width="1"/>
+  <text x="208" y="84" text-anchor="middle" fill="#8ab4f8" font-size="9" font-weight="600">Git diff / scope</text>
+
+  <!-- Stage: retrieval -->
+  <circle cx="130" cy="120" r="5" fill="#635bff" filter="url(#glow)"/>
+  <rect x="148" y="108" width="120" height="24" rx="5" fill="#1a1a3e" stroke="#635bff" stroke-width="1"/>
+  <text x="208" y="118" text-anchor="middle" fill="#a5a0ff" font-size="8">Phase 0</text>
+  <text x="208" y="128" text-anchor="middle" fill="#c5c2ff" font-size="7.5" font-weight="600">retrieval.py</text>
+
+  <!-- Stage: detector -->
+  <circle cx="130" cy="160" r="5" fill="#ff5b6a" filter="url(#glow)"/>
+  <rect x="148" y="148" width="120" height="24" rx="5" fill="#2a1520" stroke="#ff5b6a" stroke-width="1"/>
+  <text x="208" y="158" text-anchor="middle" fill="#ff8a94" font-size="8">Phase 1 — 高Recall</text>
+  <text x="208" y="168" text-anchor="middle" fill="#ffb0b7" font-size="7.5" font-weight="600">detector.py</text>
+
+  <!-- Stage: verifier -->
+  <circle cx="130" cy="200" r="5" fill="#00d4aa" filter="url(#glow)"/>
+  <rect x="148" y="188" width="120" height="24" rx="5" fill="#0a2520" stroke="#00d4aa" stroke-width="1"/>
+  <text x="208" y="198" text-anchor="middle" fill="#66e8cc" font-size="8">Phase 2 — 高Precision</text>
+  <text x="208" y="208" text-anchor="middle" fill="#99f0dd" font-size="7.5" font-weight="600">verifier.py</text>
+
+  <!-- Stage: findings -->
+  <circle cx="130" cy="240" r="5" fill="#24b47e" filter="url(#glow)"/>
+  <rect x="148" y="228" width="120" height="24" rx="5" fill="#0a2a1a" stroke="#24b47e" stroke-width="1"/>
+  <text x="208" y="238" text-anchor="middle" fill="#66d4a8" font-size="8">永続化 (JSONL)</text>
+  <text x="208" y="248" text-anchor="middle" fill="#99e4c4" font-size="7.5" font-weight="600">findings.py</text>
+
+  <!-- Stage: fix -->
+  <circle cx="130" cy="280" r="5" fill="#f5a623" filter="url(#glow)"/>
+  <rect x="148" y="268" width="120" height="24" rx="5" fill="#2a2010" stroke="#f5a623" stroke-width="1.0" stroke-dasharray="3,2"/>
+  <text x="208" y="278" text-anchor="middle" fill="#f5c76a" font-size="8">自動修正</text>
+  <text x="208" y="288" text-anchor="middle" fill="#f5d898" font-size="7.5" font-weight="600">debt_loop.py</text>
+
+  <!-- Arrows between stages -->
+  <path d="M130 86 L130 114" stroke="#635bff" stroke-width="1" opacity="0.5" marker-end="url(#arr)"/>
+
+  <!-- Side labels -->
+  <text x="60" y="124" text-anchor="middle" fill="#68778d" font-size="6.5">import解析</text>
+  <text x="60" y="132" text-anchor="middle" fill="#68778d" font-size="6.5">4Tier依存</text>
+  <text x="60" y="164" text-anchor="middle" fill="#68778d" font-size="6.5">10パターン</text>
+  <text x="60" y="204" text-anchor="middle" fill="#68778d" font-size="6.5">5基準検証</text>
+  <text x="60" y="244" text-anchor="middle" fill="#68778d" font-size="6.5">append-only</text>
+  <text x="60" y="284" text-anchor="middle" fill="#68778d" font-size="6.5">branch→PR</text>
+
+  <!-- ═══ Center: 3-Axis ═══ -->
+  <text x="410" y="56" text-anchor="middle" fill="#00d4aa" font-size="10" font-weight="600">3-AXIS SCAN MODEL</text>
+
+  <!-- Scope -->
+  <rect x="310" y="68" width="90" height="80" rx="6" fill="#1a1a3e" stroke="#635bff" stroke-width="1"/>
+  <text x="355" y="84" text-anchor="middle" fill="#a5a0ff" font-size="9" font-weight="700">Scope</text>
+  <text x="355" y="84" text-anchor="middle" fill="#a5a0ff" font-size="9" font-weight="700">Scope</text>
+  <text x="320" y="100" fill="#c5c2ff" font-size="7.5">diff</text>
+  <text x="370" y="100" fill="#68778d" font-size="6.5">変更+1hop</text>
+  <text x="320" y="114" fill="#c5c2ff" font-size="7.5">smart</text>
+  <text x="370" y="114" fill="#68778d" font-size="6.5">git履歴</text>
+  <text x="320" y="128" fill="#c5c2ff" font-size="7.5">all</text>
+  <text x="370" y="128" fill="#68778d" font-size="6.5">全ファイル</text>
+
+  <!-- × -->
+  <text x="410" y="112" text-anchor="middle" fill="#635bff" font-size="16" font-weight="700">×</text>
+
+  <!-- Depth -->
+  <rect x="420" y="68" width="90" height="80" rx="6" fill="#1a1a3e" stroke="#635bff" stroke-width="1"/>
+  <text x="465" y="84" text-anchor="middle" fill="#a5a0ff" font-size="9" font-weight="700">Depth</text>
+  <text x="430" y="100" fill="#c5c2ff" font-size="7.5">default</text>
+  <text x="480" y="100" fill="#68778d" font-size="6.5">1-hop</text>
+  <text x="430" y="114" fill="#c5c2ff" font-size="7.5">deep</text>
+  <text x="480" y="114" fill="#68778d" font-size="6.5">3-hop</text>
+
+  <!-- × -->
+  <text x="520" y="112" text-anchor="middle" fill="#635bff" font-size="16" font-weight="700">×</text>
+
+  <!-- Lens -->
+  <rect x="530" y="68" width="90" height="80" rx="6" fill="#1a1a3e" stroke="#635bff" stroke-width="1"/>
+  <text x="575" y="84" text-anchor="middle" fill="#a5a0ff" font-size="9" font-weight="700">Lens</text>
+  <text x="540" y="100" fill="#c5c2ff" font-size="7.5">default</text>
+  <text x="592" y="100" fill="#68778d" font-size="6.5">矛盾検査</text>
+  <text x="540" y="114" fill="#c5c2ff" font-size="7.5">stress</text>
+  <text x="592" y="114" fill="#68778d" font-size="6.5">地雷マップ</text>
+  <text x="540" y="128" fill="#c5c2ff" font-size="7.5">security</text>
+  <text x="592" y="128" fill="#68778d" font-size="6.5">脆弱性</text>
+
+  <!-- = 18 -->
+  <text x="460" y="164" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">= 3 × 2 × 3 = <tspan fill="#00d4aa">18通り</tspan></text>
+
+  <!-- ═══ Center-bottom: Scoring ═══ -->
+  <text x="460" y="192" text-anchor="middle" fill="#00d4aa" font-size="10" font-weight="600">4-AXIS SCORING</text>
+
+  <!-- Score boxes -->
+  <rect x="310" y="202" width="75" height="48" rx="5" fill="#1a1a3e" stroke="#635bff" stroke-width="1"/>
+  <text x="347" y="218" text-anchor="middle" fill="#a5a0ff" font-size="8" font-weight="700">debt_score</text>
+  <text x="347" y="230" text-anchor="middle" fill="#68778d" font-size="6">sev×pattern×status</text>
+  <text x="347" y="242" text-anchor="middle" fill="#555" font-size="6">深刻度 0〜1000</text>
+
+  <rect x="393" y="202" width="60" height="48" rx="5" fill="#0a2520" stroke="#00d4aa" stroke-width="1"/>
+  <text x="423" y="218" text-anchor="middle" fill="#66e8cc" font-size="8" font-weight="700">ROI</text>
+  <text x="423" y="230" text-anchor="middle" fill="#68778d" font-size="6">churn×fan_out</text>
+  <text x="423" y="242" text-anchor="middle" fill="#555" font-size="6">修正価値</text>
+
+  <rect x="461" y="202" width="75" height="48" rx="5" fill="#2a2010" stroke="#f5a623" stroke-width="1"/>
+  <text x="498" y="218" text-anchor="middle" fill="#f5c76a" font-size="8" font-weight="700">info_score</text>
+  <text x="498" y="230" text-anchor="middle" fill="#68778d" font-size="6">1/√n × log₂(1+m)</text>
+  <text x="498" y="242" text-anchor="middle" fill="#555" font-size="6">情報量(驚き度)</text>
+
+  <rect x="544" y="202" width="68" height="48" rx="5" fill="#0a2a1a" stroke="#24b47e" stroke-width="1"/>
+  <text x="578" y="218" text-anchor="middle" fill="#66d4a8" font-size="8" font-weight="700">Chao1</text>
+  <text x="578" y="230" text-anchor="middle" fill="#68778d" font-size="6">種の豊かさ推定</text>
+  <text x="578" y="242" text-anchor="middle" fill="#555" font-size="6">カバレッジ</text>
+
+  <!-- ═══ Bottom: Fault Tolerance ═══ -->
+  <text x="410" y="278" text-anchor="middle" fill="#00d4aa" font-size="10" font-weight="600">FAULT TOLERANCE</text>
+
+  <rect x="310" y="288" width="130" height="22" rx="4" fill="#1a2f4a" stroke="#4285f4" stroke-width="0.5"/>
+  <text x="375" y="302" text-anchor="middle" fill="#8ab4f8" font-size="7">3段LLMフォールバック (CLI→SDK→HTTP)</text>
+
+  <rect x="448" y="288" width="130" height="22" rx="4" fill="#1a2f4a" stroke="#4285f4" stroke-width="0.5"/>
+  <text x="513" y="302" text-anchor="middle" fill="#8ab4f8" font-size="7">4段JSONパーサー (md→json→bracket→raw)</text>
+
+  <rect x="310" y="316" width="130" height="22" rx="4" fill="#1a2f4a" stroke="#4285f4" stroke-width="0.5"/>
+  <text x="375" y="330" text-anchor="middle" fill="#8ab4f8" font-size="7">3層重複排除 (hash→trigram→entity)</text>
+
+  <rect x="448" y="316" width="130" height="22" rx="4" fill="#1a2f4a" stroke="#4285f4" stroke-width="0.5"/>
+  <text x="513" y="330" text-anchor="middle" fill="#8ab4f8" font-size="7">0件エスカレーション (3段階)</text>
+
+  <!-- ═══ Bottom-left: Patterns ═══ -->
+  <text x="130" y="318" text-anchor="middle" fill="#00d4aa" font-size="10" font-weight="600">10 PATTERNS</text>
+
+  <text x="50" y="336" fill="#a5a0ff" font-size="7">①-⑥</text>
+  <text x="74" y="336" fill="#68778d" font-size="7">構造矛盾（2箇所必須）</text>
+
+  <text x="50" y="350" fill="#f5c76a" font-size="7">⑦-⑩</text>
+  <text x="74" y="350" fill="#68778d" font-size="7">技術的負債（1箇所可）</text>
+
+  <!-- Decorative corner dots -->
+  <circle cx="12" cy="12" r="2" fill="#635bff" opacity="0.3"/>
+  <circle cx="708" cy="12" r="2" fill="#00d4aa" opacity="0.3"/>
+  <circle cx="12" cy="348" r="2" fill="#00d4aa" opacity="0.3"/>
+  <circle cx="708" cy="348" r="2" fill="#635bff" opacity="0.3"/>
+</svg>
