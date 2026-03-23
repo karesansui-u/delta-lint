@@ -9,8 +9,6 @@
 **機能改修したら、想定してない箇所でバグが発生しました。**<br>
 **—— DeltaLint はその「壊れる場所」を特定します。**
 
-> <a href="https://karesansui-u.github.io/delta-lint/docs/presentation.html" target="_blank"><b>スライドを見る</b></a> | <a href="https://drive.google.com/drive/folders/1OKwfcW8_fegY85vuFFrXD9HypR2f3_8w?usp=sharing" target="_blank"><b>デモ動画を見る</b></a>
-
 ## インストール
 
 ```bash
@@ -34,12 +32,6 @@ claude plugin install delta-lint@delta-lint
 | abhigyanpatwari/GitNexus | 17K | PRマージ 1件 — [#350](https://github.com/abhigyanpatwari/GitNexus/pull/350) |
 
 **PRマージ 13件（9リポ）** / Issue起因マージ 2件（dify 133K, hono 29K） / セキュリティ脆弱性報告 4件 / リジェクト 1件
-
-
-## 世界のトップOSSが見逃すバグを確実に捉える
-テストもCIもレビューも通るのにいつの間にか潜伏するバグ。世界トップのメンテナたちが見逃したバグも複数検知して公式にバグとして認められ、修正が取り込まれる。
-
-これまでのバグ検出ツールと違った「**構造矛盾(情報損失)**」という概念を使って自動検出します。
 
 ![DeltaLint Demo](plugins/delta-lint/demo.gif)
 
@@ -91,9 +83,9 @@ delta-fix --ids dl-xxxxxxxx // 特定の dl-ID を修正
 
 ## なぜこれがこんなに機能するのか(背景技術)
 
-この技術は、数学的に証明した構造崩壊理論をベースに作っています。(私の理論、失礼)<br>
+この技術は、下記の論文を応用したカタチです<br>
 [Structural Collapse as Information Loss: The Exponential Decay Mechanism under Accumulating Constraints](https://zenodo.org/records/19053901)（[PDF](assets/Information_loss.pdf)） <br>
-※東大松尾研OB(国内・国際学会発表経験有)の方に査読してもらいました<br>
+※東大松尾研OBの方に査読してもらいました<br>
 
 特定の条件を満たす構造は、構造矛盾によって急激に崩壊するという理論です。<br>
 ソフトウェア本体を構造物と捉えて、矛盾があったときにバグとして炙り出てくるという理論応用になります。
