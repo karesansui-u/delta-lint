@@ -17,11 +17,12 @@ claude plugin install delta-lint@delta-lint
 ```
 
 ## 本ハッカソン OSS貢献実績<br>(7日間) 2026/3/13〜3/20
-**★PRマージ 13件（9リポ）**
+**★PRマージ 14件（10リポ）**
 
 | 対象リポ | Stars | 結果 |
 |---------|-------|------|
 | microsoft/playwright | 70K | PRマージ 1件 — [#39744](https://github.com/microsoft/playwright/pull/39744) |
+| microsoft/fluentui | 19K | PRマージ 1件 — [#35877](https://github.com/microsoft/fluentui/pull/35877) |
 | facebook/lexical | 20K | PRマージ 1件 — [#8235](https://github.com/facebook/lexical/pull/8235) |
 | bytedance/deer-flow | 31K | PRマージ 3件 — [#1161](https://github.com/bytedance/deer-flow/pull/1161) [#1162](https://github.com/bytedance/deer-flow/pull/1162) [#1163](https://github.com/bytedance/deer-flow/pull/1163) |
 | promptfoo/promptfoo | 16K | PRマージ 3件 — [#8163](https://github.com/promptfoo/promptfoo/pull/8163) [#8165](https://github.com/promptfoo/promptfoo/pull/8165) [#8182](https://github.com/promptfoo/promptfoo/pull/8182) |
@@ -31,7 +32,7 @@ claude plugin install delta-lint@delta-lint
 | D4Vinci/Scrapling | 30K | PRマージ 1件 — [#201](https://github.com/D4Vinci/Scrapling/pull/201) |
 | abhigyanpatwari/GitNexus | 17K | PRマージ 1件 — [#350](https://github.com/abhigyanpatwari/GitNexus/pull/350) |
 
-**PRマージ 13件（9リポ）** / Issue起因マージ 2件（dify 133K, hono 29K） / セキュリティ脆弱性報告 4件 / リジェクト 1件
+**PRマージ 14件（10リポ）** / Issue起因マージ 2件（dify 133K, hono 29K） / セキュリティ脆弱性報告 4件 / リジェクト 1件
 
 ![DeltaLint Demo](plugins/delta-lint/demo.gif)
 
