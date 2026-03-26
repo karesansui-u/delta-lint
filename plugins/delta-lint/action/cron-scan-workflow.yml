@@ -1,0 +1,45 @@
+# delta-lint: Weekly Full Scan
+#
+# Runs a wide scan of the entire repository on a schedule.
+# Results are uploaded as SARIF to GitHub Code Scanning.
+#
+# Usage:
+#   1. Copy this file to .github/workflows/delta-lint-cron.yml
+#   2. Set ANTHROPIC_API_KEY secret
+#   3. Adjust cron schedule and severity as needed
+
+name: "delta-lint: Weekly Full Scan"
+
+on:
+  schedule:
+    # Every Monday at 03:00 UTC
+    - cron: "0 3 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  security-events: write    # SARIF upload
+
+jobs:
+  full-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: delta-lint (wide scan)
+        uses: karesansui-u/agi-lab-skills-marketplace/plugins/delta-lint/action@main
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          scope: "wide"
+          severity: "medium"
+          sarif: "true"
+          # model: "claude-sonnet-4-20250514"
+          # fail_severity: "high"
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: delta-lint.sarif

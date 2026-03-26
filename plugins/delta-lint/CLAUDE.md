@@ -48,7 +48,7 @@ cli.py              ─── メイン CLI エントリポイント。argparse 
 ├── cmd_init.py         ─── init コマンド。セットアップのみ（スキャンしない）
 ├── cmd_scan.py         ─── scan コマンド群。cmd_scan, cmd_scan_deep, cmd_scan_full, cmd_watch
 ├── scanner.py          ─── コア検出パイプライン（context→detect→verify→filter）。cmd_scan/CI 共通
-├── output_formats.py   ─── CI 出力フォーマッター（JSON/PR Markdown/annotations）
+├── output_formats.py   ─── CI 出力フォーマッター（JSON/PR Markdown/annotations/SARIF）
 ├── detector.py         ─── LLM スキャン（通常）→ llm.py 経由
 ├── retrieval.py        ─── ファイル取得 + import 依存解析
 ├── findings.py         ─── JSONL 管理 + ダッシュボード生成

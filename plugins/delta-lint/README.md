@@ -110,33 +110,34 @@ python cli.py scan --backend api
 Git diff → ファイル選択
     │
     ▼
-[Phase 0] retrieval.py — コンテキスト構築
-    │  import 解析 → 1-hop 依存取得
-    │  信頼度による階層化: direct(0.95) / re-export(0.85) / type(0.50)
-    │  [optional] --semantic: LLM で暗黙仮定を抽出 → grep で関連ファイル発見
-    │  [optional] --docs: ドキュメントを仕様契約として追加
+scanner.py — パイプライン統括（ScanResult を返す純粋関数）
+    │  CLI / GitHub Action / Skill から共通呼び出し
+    │
+    ├─▶ [Phase 0] retrieval.py — コンテキスト構築
+    │      import 解析 → 1-hop 依存取得
+    │      信頼度による階層化: direct(0.95) / re-export(0.85) / type(0.50)
+    │      [optional] --semantic: LLM で暗黙仮定を抽出 → grep で関連ファイル発見
+    │      [optional] --docs: ドキュメントを仕様契約として追加
+    │
+    ├─▶ [Phase 1] detector.py — LLM 検出（高 recall）
+    │      prompts/detect.md をシステムプロンプトとして送信
+    │      10パターン（①-⑩）に基づく検出
+    │      方針: 「30%の確信度でも報告。全部報告し、後で絞る」
+    │
+    ├─▶ [Phase 2] verifier.py — LLM 検証（高 precision）
+    │      prompts/verify.md で各 finding を再検証
+    │      本番で到達可能か？意図的な分岐か？を判定
+    │      --no-verify でスキップ可能
+    │
+    └─▶ output.py — フィルタリング
+         severity フィルタ + suppress.yml マッチ
+         → shown / filtered / suppressed / expired に分類
     │
     ▼
-[Phase 1] detector.py — LLM 検出（高 recall）
-    │  prompts/detect.md をシステムプロンプトとして送信
-    │  10パターン（①-⑩）に基づく検出
-    │  方針: 「30%の確信度でも報告。全部報告し、後で絞る」
-    │
-    ▼
-[Phase 2] verifier.py — LLM 検証（高 precision）
-    │  prompts/verify.md で各 finding を再検証
-    │  本番で到達可能か？意図的な分岐か？を判定
-    │  --no-verify でスキップ可能
-    │
-    ▼
-output.py — フィルタリング
-    │  severity フィルタ + suppress.yml マッチ
-    │  → shown / filtered / suppressed / expired に分類
-    │
-    ▼
-findings.py — 永続化
-    │  JSONL append-only イベントログに追記
-    │  同一IDの後発エントリが最新状態
+出力（呼び出し元が選択）
+    ├── cmd_scan.py     → findings.py（JSONL 永続化）+ ターミナル表示
+    ├── entrypoint.py   → PR コメント + Check annotations + SARIF
+    └── output_formats.py — CI 出力フォーマッター（JSON / Markdown / SARIF / annotations）
     │
     ▼
 [optional] fixgen.py + debt_loop.py — 自動修正
@@ -282,7 +283,28 @@ import 解析では見つからない暗黙の依存を LLM + grep で発見。
 
 `--semantic` フラグで有効化。
 
-### 6.3 llm.py（237行）— LLM バックエンド抽象化
+### 6.3 scanner.py（246行）— パイプライン統括
+
+`cmd_scan.py` / `entrypoint.py` / スキルから共通呼び出しされる純粋パイプライン関数。
+
+**`scan()`** — context 構築 → 検出 → 検証 → フィルタリングを一貫実行し、`ScanResult` dataclass を返す。IO（JSONL 書き込み、PR コメント投稿等）は呼び出し元の責務。
+
+**`on_finding` コールバック**: ローカル CLI は `add_finding()` を渡してクラッシュ耐性を確保。CI/Action は `None`（バッチ処理）。
+
+### 6.4 output_formats.py — CI/CD 出力フォーマッター
+
+`ScanResult` のみを入力とし、CI/CD 向けの出力を生成するフォーマッター群。
+
+| 関数 | 出力形式 | 用途 |
+|------|----------|------|
+| `format_ci_json()` | JSON | CI パイプライン連携 |
+| `format_pr_markdown()` | GitHub Flavored Markdown | PR コメント |
+| `format_annotations()` | Check Run annotations | GitHub Checks API |
+| `format_sarif()` | SARIF 2.1.0 | GitHub Code Scanning |
+
+SARIF は 6 パターン（①-⑥）を静的ルール定義。未知パターンは動的追加。
+
+### 6.5 llm.py（237行）— LLM バックエンド抽象化
 
 全 LLM 呼び出しの **Single Source of Truth**。detector / verifier / deep_verifier / fixgen が全てこのモジュール経由で LLM を呼ぶ。
 
@@ -295,7 +317,7 @@ import 解析では見つからない暗黙の依存を LLM + grep で発見。
 - `"cli"`: ClaudeCLI のみ（不可時エラー）
 - `"api"`: SDK → HTTP（SDK 不可時 HTTP にフォールバック）
 
-### 6.4 detector.py（422行）— Phase 1: LLM 検出
+### 6.6 detector.py（422行）— Phase 1: LLM 検出
 
 **プロンプト設計（prompts/detect.md）**:
 
@@ -313,7 +335,7 @@ import 解析では見つからない暗黙の依存を LLM + grep で発見。
 
 **リトライ**: 最大2回、指数バックオフ（1s, 2s）
 
-### 6.5 verifier.py（213行）— Phase 2: LLM 検証
+### 6.7 verifier.py（213行）— Phase 2: LLM 検証
 
 **5つの検証基準**（すべて満たす場合のみ CONFIRMED）:
 
@@ -327,7 +349,7 @@ import 解析では見つからない暗黙の依存を LLM + grep で発見。
 
 全 findings を1回の LLM 呼び出しでバッチ検証（コスト効率優先）。confidence < 0.7 で reject。バックエンド不可時は全件パススルー（graceful degradation）。
 
-### 6.6 findings.py（1896行）— JSONL 管理 + ダッシュボード
+### 6.8 findings.py（1896行）— JSONL 管理 + ダッシュボード
 
 **設計思想**: LLM は非決定的 → append-only で蓄積（ストック型）
 
@@ -353,7 +375,7 @@ import 解析では見つからない暗黙の依存を LLM + grep で発見。
 
 **ダッシュボード**: Python `string.Template`（Jinja2 ではない）。テンプレート解決は profile > repo-local > built-in。
 
-### 6.7 scoring.py（458行）+ info_theory.py（302行）— スコアリング
+### 6.9 scoring.py（458行）+ info_theory.py（302行）— スコアリング
 
 4軸の独立したスコアで優先度を多角的に評価。
 
@@ -394,7 +416,7 @@ info_score = (1/√n) × log₂(1+m) × INFO_SCALE(100)
 
 **3層マージ**: `defaults(scoring.py) ← config.json ← profile policy`。指定キーだけ上書き。
 
-### 6.8 suppress.py（305行）— サプレス管理
+### 6.10 suppress.py（305行）— サプレス管理
 
 LLM 出力に依存しないハッシュ設計:
 
@@ -402,7 +424,7 @@ LLM 出力に依存しないハッシュ設計:
 - **code_hash**: ±10行のコードハッシュ → コード変更時に自動失効
 - **SuppressEntry**: 理由(why)、理由タイプ(domain/technical/preference)、承認者の記録
 
-### 6.9 fixgen.py（209行）+ debt_loop.py（735行）— 自動修正
+### 6.11 fixgen.py（209行）+ debt_loop.py（735行）— 自動修正
 
 **fixgen.py**: LLM にソースコード + 矛盾情報を渡し、最小限の修正パッチ（old_code → new_code）を生成。llm.py 経由で呼び出し。
 
@@ -415,14 +437,14 @@ LLM 出力に依存しないハッシュ設計:
 - push 権限なしで `gh repo fork` を自動実行
 - auto-stash: 未コミット変更の退避と復元
 
-### 6.10 stress_test.py — ストレステスト + 地雷マップ
+### 6.12 stress_test.py — ストレステスト + 地雷マップ
 
 1. **Step 0**: 構造分析（LLM でリポジトリアーキテクチャを理解）
 2. **Step 0.5**: 既存バグスキャン（ホットスポットクラスタの現在の矛盾検出）
 3. **Step 1**: 仮想改修生成（LLM で「こう変更したら？」のシナリオ作成）
 4. **Step 2**: 各仮想改修をスキャン → per-file ヒートマップとして集約
 
-### 6.11 補助モジュール
+### 6.13 補助モジュール
 
 | モジュール | 責務 |
 |-----------|------|
@@ -681,19 +703,34 @@ python cli.py fix --repo /path/to/repo --dry-run -v
 | 統合先 | 方法 | 用途 |
 |--------|------|------|
 | **Claude Code** | 3 Skill（delta-scan, delta-review, delta-fix） | 対話的スキャン・レビュー・修正 |
-| **GitHub Actions** | action/entrypoint.py | PR 自動レビュー（review/suggest/autofix の3モード） |
+| **GitHub Actions** | action/entrypoint.py | PR 自動レビュー、定期スキャン、リリースゲート |
 | **CLI** | scripts/cli.py | ローカル開発での直接実行 |
-| **CI/CD** | `cli.py scan -p light` | ゲート（high のみ、`fail_on_findings`） |
+| **CI/CD** | `cli.py scan -p light` | ゲート（high のみ、`fail_severity`） |
 
 ### GitHub Actions
 
 ```yaml
+# PR スキャン（基本）
 - uses: your-org/delta-lint@v1
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     mode: "suggest"           # "review" / "suggest" / "autofix"
     severity: "high"
-    fail_on_findings: "true"
+    fail_severity: "high"     # high 以上でマージブロック
+```
+
+```yaml
+# 定期フルスキャン（SARIF → Code Scanning）
+- uses: your-org/delta-lint@v1
+  with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    scope: "wide"
+    severity: "medium"
+    sarif: "true"
+- uses: github/codeql-action/upload-sarif@v3
+  if: always()
+  with:
+    sarif_file: delta-lint.sarif
 ```
 
 | 入力 | デフォルト | 説明 |
@@ -704,7 +741,16 @@ python cli.py fix --repo /path/to/repo --dry-run -v
 | `model` | `"claude-sonnet-4-20250514"` | 使用モデル |
 | `max_diff_files` | `20` | 変更ファイル数がこれを超えるとスキップ |
 | `comment_on_clean` | `false` | findings 0件でもコメント投稿 |
-| `fail_on_findings` | `false` | findings 検出時にワークフローを失敗させる |
+| `fail_severity` | `"none"` | この重要度以上でワークフロー失敗（`high`/`medium`/`low`/`none`） |
+| `scope` | `"pr"` | スキャン範囲: `pr`（PR変更）/ `wide`（全リポ）|
+| `lens` | `"default"` | 検出レンズ: `default` / `security` |
+| `sarif` | `"false"` | SARIF 出力（Code Scanning 連携用） |
+
+ワークフロー例は `action/` 配下を参照:
+- `example-workflow.yml` — PR スキャン + `/delta-review` コメントボット
+- `cron-scan-workflow.yml` — 定期フルスキャン + SARIF
+- `release-gate-workflow.yml` — リリースゲート（security lens + マージブロック）
+- `debt-loop-workflow.yml` — 自動負債解消ループ
 
 ## 11. 設計判断記録（ADR）
 

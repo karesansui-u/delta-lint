@@ -48,7 +48,8 @@ jobs:
           mode: "suggest"
 
           severity: "high"
+          # fail_severity: "high"   # Block merge on high findings
           # model: "claude-sonnet-4-20250514"
           # max_diff_files: "20"
-          # fail_on_findings: "false"
           # comment_on_clean: "false"
+          # sarif: "true"           # Enable SARIF for Code Scanning

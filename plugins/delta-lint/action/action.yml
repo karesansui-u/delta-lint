@@ -36,6 +36,18 @@ inputs:
     description: "Fail if findings at this severity or above exist (high/medium/low/none). Overrides fail_on_findings."
     required: false
     default: "none"
+  scope:
+    description: "Scan scope: pr (default for PRs), wide (full repo for cron/release)"
+    required: false
+    default: "pr"
+  lens:
+    description: "Detection lens: default, security"
+    required: false
+    default: "default"
+  sarif:
+    description: "Write SARIF output file for GitHub Code Scanning (true/false)"
+    required: false
+    default: "false"
 
 outputs:
   findings_count:
@@ -44,6 +56,9 @@ outputs:
   fixed_count:
     description: "Number of findings auto-fixed (autofix mode only)"
     value: ${{ steps.scan.outputs.fixed_count }}
+  sarif_file:
+    description: "Path to SARIF output file (only when sarif: true)"
+    value: ${{ steps.scan.outputs.sarif_file }}
 
 runs:
   using: "composite"
@@ -71,4 +86,7 @@ runs:
           --max-diff-files "${{ inputs.max_diff_files }}" \
           --comment-on-clean "${{ inputs.comment_on_clean }}" \
           --fail-on-findings "${{ inputs.fail_on_findings }}" \
-          --fail-severity "${{ inputs.fail_severity }}"
+          --fail-severity "${{ inputs.fail_severity }}" \
+          --scope "${{ inputs.scope }}" \
+          --lens "${{ inputs.lens }}" \
+          --sarif "${{ inputs.sarif }}"

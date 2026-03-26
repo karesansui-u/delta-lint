@@ -136,19 +136,34 @@ def get_pr_diff_text() -> str:
     return result.stdout
 
 
-def run_scan(files: list[str], severity: str, model: str):
+def get_all_source_files(repo_path: str) -> list[str]:
+    """Get all tracked source files in the repo (for wide/cron scans)."""
+    result = subprocess.run(
+        ["git", "ls-files"],
+        capture_output=True, text=True, timeout=30,
+        cwd=repo_path,
+    )
+    if result.returncode != 0:
+        return []
+    all_files = [f for f in result.stdout.strip().split("\n") if f]
+    return filter_scannable_files(all_files)
+
+
+def run_scan(files: list[str], severity: str, model: str,
+             scope: str = "pr", lens: str = "default"):
     """Run scan via scanner.scan() — returns ScanResult."""
     from scanner import scan as engine_scan
 
     repo_path = os.environ.get("GITHUB_WORKSPACE", ".")
-    diff_text = get_pr_diff_text()
+    diff_text = get_pr_diff_text() if scope == "pr" else ""
 
     return engine_scan(
         repo_path, files,
         model=model,
         backend="api",
         severity=severity,
-        scope="pr",
+        scope=scope,
+        lens=lens,
         no_cache=True,
         on_finding=None,
         diff_text=diff_text,
@@ -572,11 +587,17 @@ def main():
     parser.add_argument("--fail-on-findings", default="false")
     parser.add_argument("--fail-severity", default="none",
                         choices=["high", "medium", "low", "none"])
+    parser.add_argument("--scope", default="pr",
+                        choices=["pr", "diff", "smart", "wide"])
+    parser.add_argument("--lens", default="default")
+    parser.add_argument("--sarif", default="false")
     args = parser.parse_args()
 
-    # 0. If triggered by comment, add 👀 reaction to acknowledge
+    # 0. Determine PR context
     event = get_event()
-    if "comment" in event:
+    is_pr = "pull_request" in event or "issue" in event
+
+    if is_pr and "comment" in event:
         add_reaction(event["comment"]["id"], "eyes")
         # Override mode from comment text if specified: /delta-review suggest
         comment_body = event["comment"].get("body", "")
@@ -586,21 +607,39 @@ def main():
                 print(f"  Mode override from comment: {m}", file=sys.stderr)
                 break
 
-    # 1. Get PR changed files
-    print("Getting PR changed files...", file=sys.stderr)
-    all_files = get_pr_changed_files()
-    print(f"  PR has {len(all_files)} changed file(s)", file=sys.stderr)
+    repo_path = os.environ.get("GITHUB_WORKSPACE", ".")
 
-    if len(all_files) > args.max_diff_files:
-        print(f"  Skipping: {len(all_files)} files exceeds limit ({args.max_diff_files})",
-              file=sys.stderr)
-        set_output("findings_count", "0")
-        set_output("fixed_count", "0")
-        return
+    # 1. Get files to scan
+    if args.scope == "wide":
+        # Full repo scan (cron, release gate)
+        print("Getting all source files for wide scan...", file=sys.stderr)
+        source_files = get_all_source_files(repo_path)
+        print(f"  {len(source_files)} source file(s) to scan", file=sys.stderr)
+    elif is_pr:
+        # PR scan
+        print("Getting PR changed files...", file=sys.stderr)
+        all_files = get_pr_changed_files()
+        print(f"  PR has {len(all_files)} changed file(s)", file=sys.stderr)
 
-    # 2. Filter to scannable source files
-    source_files = filter_scannable_files(all_files)
-    print(f"  {len(source_files)} source file(s) to scan", file=sys.stderr)
+        if len(all_files) > args.max_diff_files:
+            print(f"  Skipping: {len(all_files)} files exceeds limit ({args.max_diff_files})",
+                  file=sys.stderr)
+            set_output("findings_count", "0")
+            set_output("fixed_count", "0")
+            return
+
+        source_files = filter_scannable_files(all_files)
+        print(f"  {len(source_files)} source file(s) to scan", file=sys.stderr)
+    else:
+        # Push event (e.g. push to main) — scan changed files from HEAD~1
+        print("Getting changed files from push...", file=sys.stderr)
+        result = subprocess.run(
+            ["git", "diff", "--name-only", "HEAD~1"],
+            capture_output=True, text=True, timeout=30, cwd=repo_path,
+        )
+        push_files = [f for f in result.stdout.strip().split("\n") if f] if result.returncode == 0 else []
+        source_files = filter_scannable_files(push_files)
+        print(f"  {len(source_files)} source file(s) to scan", file=sys.stderr)
 
     if not source_files:
         print("  No source files to scan", file=sys.stderr)
@@ -608,51 +647,67 @@ def main():
         set_output("fixed_count", "0")
         return
 
-    # 3. Run scan
-    print(f"Running delta-lint scan (mode={args.mode}, model={args.model}, "
-          f"severity>={args.severity})...", file=sys.stderr)
-    scan_result = run_scan(source_files, args.severity, args.model)
+    # 2. Run scan
+    print(f"Running delta-lint scan (scope={args.scope}, mode={args.mode}, "
+          f"model={args.model}, severity>={args.severity})...", file=sys.stderr)
+    scan_result = run_scan(source_files, args.severity, args.model,
+                           scope=args.scope, lens=args.lens)
     findings = scan_result.shown
     findings_count = len(findings)
     print(f"  {findings_count} finding(s)", file=sys.stderr)
     set_output("findings_count", str(findings_count))
 
-    # 3.5. Post Check Run annotations (always, even if 0 findings)
-    post_check_annotations(scan_result)
+    # 3. SARIF output (always written if enabled, regardless of findings)
+    if args.sarif == "true":
+        from output_formats import format_sarif
+        sarif_json = format_sarif(scan_result, repo_name=get_repo())
+        sarif_path = Path(repo_path) / "delta-lint.sarif"
+        sarif_path.write_text(sarif_json, encoding="utf-8")
+        print(f"  SARIF written to {sarif_path}", file=sys.stderr)
+        set_output("sarif_file", str(sarif_path))
 
-    # 4. No findings — optional clean comment
+    # 4. Check Run annotations (PR context only)
+    if is_pr:
+        post_check_annotations(scan_result)
+
+    # 5. No findings — optional clean comment
     if findings_count == 0:
         set_output("fixed_count", "0")
-        if args.comment_on_clean == "true":
+        if is_pr and args.comment_on_clean == "true":
             body = format_review_comment(scan_result, source_files, args.severity, args.mode)
             post_or_update_comment(body)
         return
 
-    # 5. Mode dispatch
+    # 6. Mode dispatch (PR context only; non-PR outputs via SARIF/console)
     fixed_count = 0
 
-    if args.mode == "review":
-        body = format_review_comment(scan_result, source_files, args.severity, "review")
-        comment_id = post_or_update_comment(body)
-        if comment_id:
-            set_output("comment_id", str(comment_id))
+    if is_pr:
+        if args.mode == "review":
+            body = format_review_comment(scan_result, source_files, args.severity, "review")
+            comment_id = post_or_update_comment(body)
+            if comment_id:
+                set_output("comment_id", str(comment_id))
 
-    elif args.mode == "suggest":
-        print("Generating fixes for suggested changes...", file=sys.stderr)
-        fixes = generate_fixes(findings, scan_result.context, args.model)
-        print(f"  {len(fixes)} fix(es) generated", file=sys.stderr)
-        post_suggestions(findings, fixes, scan_result, source_files, args.severity)
-        fixed_count = len(fixes)
+        elif args.mode == "suggest":
+            print("Generating fixes for suggested changes...", file=sys.stderr)
+            fixes = generate_fixes(findings, scan_result.context, args.model)
+            print(f"  {len(fixes)} fix(es) generated", file=sys.stderr)
+            post_suggestions(findings, fixes, scan_result, source_files, args.severity)
+            fixed_count = len(fixes)
 
-    elif args.mode == "autofix":
-        print("Generating fixes for autofix...", file=sys.stderr)
-        fixes = generate_fixes(findings, scan_result.context, args.model)
-        print(f"  {len(fixes)} fix(es) generated", file=sys.stderr)
-        fixed_count = apply_and_push_fixes(fixes, scan_result, source_files, args.severity)
+        elif args.mode == "autofix":
+            print("Generating fixes for autofix...", file=sys.stderr)
+            fixes = generate_fixes(findings, scan_result.context, args.model)
+            print(f"  {len(fixes)} fix(es) generated", file=sys.stderr)
+            fixed_count = apply_and_push_fixes(fixes, scan_result, source_files, args.severity)
+    else:
+        # Non-PR context (cron, release gate) — print summary to console
+        from output_formats import format_ci_json
+        print(format_ci_json(scan_result), file=sys.stdout)
 
     set_output("fixed_count", str(fixed_count))
 
-    # 6. Exit code — severity-based merge block
+    # 7. Exit code — severity-based merge block
     fail_sev = args.fail_severity
     if fail_sev != "none":
         sev_order = {"high": 1, "medium": 2, "low": 3}

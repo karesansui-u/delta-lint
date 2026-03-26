@@ -1,0 +1,45 @@
+# delta-lint: Release Gate
+#
+# Runs a wide scan with security lens on version tags.
+# Blocks the release if medium+ severity contradictions are found.
+#
+# Usage:
+#   1. Copy this file to .github/workflows/delta-lint-release.yml
+#   2. Set ANTHROPIC_API_KEY secret
+#   3. Adjust fail_severity and lens as needed
+
+name: "delta-lint: Release Gate"
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  security-events: write    # SARIF upload
+  checks: write             # Check annotations
+
+jobs:
+  release-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: delta-lint (release gate)
+        uses: karesansui-u/agi-lab-skills-marketplace/plugins/delta-lint/action@main
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          scope: "wide"
+          lens: "security"
+          severity: "low"
+          fail_severity: "medium"
+          sarif: "true"
+          # model: "claude-sonnet-4-20250514"
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: delta-lint.sarif

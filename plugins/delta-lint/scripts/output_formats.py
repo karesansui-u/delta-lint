@@ -180,3 +180,148 @@ def format_annotations(result: "ScanResult") -> list[dict]:
             })
 
     return annotations
+
+
+# ---------------------------------------------------------------------------
+# SARIF 2.1.0 (GitHub Code Scanning)
+# ---------------------------------------------------------------------------
+
+# Static rule definitions for the 6 contradiction patterns.
+_SARIF_RULES: list[dict] = [
+    {
+        "id": "\u2460",
+        "name": "AsymmetricDefaults",
+        "shortDescription": {"text": "Asymmetric Defaults"},
+        "helpUri": "https://github.com/karesansui-u/DeltaRegret",
+    },
+    {
+        "id": "\u2461",
+        "name": "SemanticMismatch",
+        "shortDescription": {"text": "Semantic Mismatch"},
+        "helpUri": "https://github.com/karesansui-u/DeltaRegret",
+    },
+    {
+        "id": "\u2462",
+        "name": "ExternalSpecDivergence",
+        "shortDescription": {"text": "External Spec Divergence"},
+        "helpUri": "https://github.com/karesansui-u/DeltaRegret",
+    },
+    {
+        "id": "\u2463",
+        "name": "GuardNonPropagation",
+        "shortDescription": {"text": "Guard Non-Propagation"},
+        "helpUri": "https://github.com/karesansui-u/DeltaRegret",
+    },
+    {
+        "id": "\u2464",
+        "name": "PairedSettingOverride",
+        "shortDescription": {"text": "Paired-Setting Override"},
+        "helpUri": "https://github.com/karesansui-u/DeltaRegret",
+    },
+    {
+        "id": "\u2465",
+        "name": "LifecycleOrdering",
+        "shortDescription": {"text": "Lifecycle Ordering"},
+        "helpUri": "https://github.com/karesansui-u/DeltaRegret",
+    },
+]
+
+def format_sarif(result: "ScanResult", repo_name: str = "") -> str:
+    """SARIF 2.1.0 JSON for GitHub Code Scanning integration.
+
+    Produces a valid SARIF log that can be uploaded via
+    github/codeql-action/upload-sarif@v3.
+    """
+    level_map = {"high": "error", "medium": "warning", "low": "note"}
+
+    # Build rules list — start with the 6 known patterns, add unknowns
+    rules = list(_SARIF_RULES)
+    rule_index: dict[str, int] = {r["id"]: i for i, r in enumerate(rules)}
+
+    sarif_results: list[dict] = []
+
+    for f in result.shown:
+        pattern = f.get("pattern", "?")
+        sev = f.get("severity", "low").lower()
+        loc = f.get("location", {})
+        file_a = loc.get("file_a", "")
+        file_b = loc.get("file_b", "")
+        contradiction = f.get("contradiction", "")
+        impact = f.get("user_impact") or f.get("impact", "")
+
+        # Ensure rule exists
+        if pattern not in rule_index:
+            rule_index[pattern] = len(rules)
+            rules.append({
+                "id": pattern,
+                "name": pattern,
+                "shortDescription": {"text": pattern},
+                "helpUri": "https://github.com/karesansui-u/DeltaRegret",
+            })
+
+        # Extract line number from detail
+        line_a = 1
+        detail_a = loc.get("detail_a", "")
+        if detail_a:
+            import re
+            m = re.search(r"line\s*~?(\d+)", detail_a, re.IGNORECASE)
+            if m:
+                line_a = int(m.group(1))
+
+        message_text = contradiction
+        if impact:
+            message_text += f"\n\nImpact: {impact}"
+
+        sarif_result: dict = {
+            "ruleId": pattern,
+            "ruleIndex": rule_index[pattern],
+            "level": level_map.get(sev, "note"),
+            "message": {"text": message_text or "Structural contradiction detected"},
+            "locations": [],
+        }
+
+        if file_a:
+            sarif_result["locations"].append({
+                "physicalLocation": {
+                    "artifactLocation": {"uri": file_a, "uriBaseId": "%SRCROOT%"},
+                    "region": {"startLine": line_a},
+                },
+            })
+
+        # Related location (file_b)
+        if file_b:
+            line_b = 1
+            detail_b = loc.get("detail_b", "")
+            if detail_b:
+                import re
+                m = re.search(r"line\s*~?(\d+)", detail_b, re.IGNORECASE)
+                if m:
+                    line_b = int(m.group(1))
+            sarif_result["relatedLocations"] = [{
+                "id": 0,
+                "physicalLocation": {
+                    "artifactLocation": {"uri": file_b, "uriBaseId": "%SRCROOT%"},
+                    "region": {"startLine": line_b},
+                },
+                "message": {"text": f"Related file: {file_b}"},
+            }]
+
+        sarif_results.append(sarif_result)
+
+    sarif_log = {
+        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [{
+            "tool": {
+                "driver": {
+                    "name": "delta-lint",
+                    "informationUri": "https://github.com/karesansui-u/DeltaRegret",
+                    "version": "0.1.0",
+                    "rules": rules,
+                },
+            },
+            "results": sarif_results,
+        }],
+    }
+
+    return json.dumps(sarif_log, indent=2, ensure_ascii=False)
