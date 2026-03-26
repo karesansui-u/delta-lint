@@ -15,20 +15,9 @@ Design decisions:
 """
 
 import json
-import os
-import subprocess
 from pathlib import Path
 
-try:
-    import anthropic
-except ImportError:
-    anthropic = None
-
-try:
-    import requests as req_lib
-except ImportError:
-    req_lib = None
-
+from llm import call_llm
 from retrieval import ModuleContext
 
 
@@ -57,72 +46,6 @@ def _build_verify_user_prompt(findings: list[dict], context: ModuleContext) -> s
     return "".join(parts)
 
 
-# ---------------------------------------------------------------------------
-# LLM backends (same pattern as detector.py)
-# ---------------------------------------------------------------------------
-
-def _cli_available() -> bool:
-    from cli_utils import cli_available
-    return cli_available()
-
-
-def _verify_cli(system_prompt: str, user_prompt: str) -> str:
-    """Call Claude via claude -p (subscription CLI, $0 cost)."""
-    prompt = system_prompt + "\n\n" + user_prompt
-    result = subprocess.run(
-        ["claude", "-p"],
-        input=prompt,
-        capture_output=True, text=True, timeout=600,
-    )
-    # Hook failures (e.g. SessionEnd) cause non-zero exit even when output is valid
-    if result.stdout.strip():
-        return result.stdout
-    if result.returncode != 0:
-        raise RuntimeError(f"claude -p failed: {result.stderr[:300]}")
-    return result.stdout
-
-
-def _verify_anthropic_sdk(system_prompt: str, user_prompt: str, model: str) -> str:
-    """Call Claude via the official Anthropic SDK."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
-    client = anthropic.Anthropic(api_key=api_key, timeout=600.0) if api_key else anthropic.Anthropic(timeout=600.0)
-    message = client.messages.create(
-        model=model,
-        max_tokens=4096,
-        temperature=0,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
-    return message.content[0].text
-
-
-def _verify_requests(system_prompt: str, user_prompt: str, model: str) -> str:
-    """Call Claude via raw HTTP (fallback if SDK not installed)."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY or CLAUDE_API_KEY not set")
-
-    resp = req_lib.post(
-        "https://api.anthropic.com/v1/messages",
-        headers={
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        },
-        json={
-            "model": model,
-            "max_tokens": 4096,
-            "temperature": 0,
-            "system": system_prompt,
-            "messages": [{"role": "user", "content": user_prompt}],
-        },
-        timeout=180,
-    )
-
-    if resp.status_code != 200:
-        raise RuntimeError(f"Claude API error {resp.status_code}: {resp.text[:300]}")
-
-    return resp.json()["content"][0]["text"]
 
 
 # ---------------------------------------------------------------------------
@@ -210,18 +133,10 @@ def verify_findings(
         import sys
         print(f"  Verifying {len(verifiable)} finding(s)...", file=sys.stderr)
 
-    # Call LLM
-    if backend == "cli" and not _cli_available():
-        backend = "api"
-
-    if backend == "cli":
-        raw = _verify_cli(system_prompt, user_prompt)
-    elif anthropic is not None:
-        raw = _verify_anthropic_sdk(system_prompt, user_prompt, model)
-    elif req_lib is not None:
-        raw = _verify_requests(system_prompt, user_prompt, model)
-    else:
-        # No backend available — pass all through (degrade gracefully)
+    # Call LLM (graceful degradation: pass all through if no backend)
+    try:
+        raw = call_llm(system_prompt, user_prompt, model=model, backend=backend)
+    except RuntimeError:
         if verbose:
             import sys
             print("  No LLM backend for verification — skipping", file=sys.stderr)

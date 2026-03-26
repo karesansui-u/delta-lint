@@ -10,16 +10,11 @@ Supports two backends:
 """
 
 import json
-import os
 import re
-import subprocess
 import sys
 from pathlib import Path
 
-try:
-    import anthropic
-except ImportError:
-    anthropic = None
+from llm import call_llm
 
 
 # ---------------------------------------------------------------------------
@@ -60,14 +55,6 @@ If you cannot generate a safe fix, return `[]`.
 """
 
 
-# ---------------------------------------------------------------------------
-# Backend detection (reuse detector.py pattern)
-# ---------------------------------------------------------------------------
-
-def _cli_available() -> bool:
-    from cli_utils import cli_available
-    return cli_available()
-
 
 # ---------------------------------------------------------------------------
 # Fix generation
@@ -87,11 +74,6 @@ def generate_fixes(findings: list[dict], context, model: str,
     Returns:
         list of fix dicts [{file, line, old_code, new_code, explanation, _finding}]
     """
-    if backend == "cli" and not _cli_available():
-        if verbose:
-            print("  claude CLI not available, falling back to API", file=sys.stderr)
-        backend = "api"
-
     source_code = context.to_prompt_string() if hasattr(context, 'to_prompt_string') else ""
     all_fixes = []
 
@@ -109,10 +91,7 @@ def generate_fixes(findings: list[dict], context, model: str,
         )
 
         try:
-            if backend == "cli":
-                raw = _generate_fix_cli(prompt)
-            else:
-                raw = _generate_fix_api(prompt, model)
+            raw = call_llm("", prompt, model=model, backend=backend)
 
             fixes = _parse_fixes(raw)
             for fix in fixes:
@@ -125,37 +104,6 @@ def generate_fixes(findings: list[dict], context, model: str,
             print(f"  Fix generation failed: {e}", file=sys.stderr)
 
     return all_fixes
-
-
-def _generate_fix_cli(prompt: str) -> str:
-    """Call claude -p for fix generation ($0)."""
-    result = subprocess.run(
-        ["claude", "-p"],
-        input=prompt,
-        capture_output=True, text=True, timeout=600,
-    )
-    # Hook failures (e.g. SessionEnd) cause non-zero exit even when output is valid
-    if result.stdout.strip():
-        return result.stdout
-    if result.returncode != 0:
-        raise RuntimeError(f"claude -p failed: {result.stderr[:300]}")
-    return result.stdout
-
-
-def _generate_fix_api(prompt: str, model: str) -> str:
-    """Call Anthropic API for fix generation."""
-    if anthropic is None:
-        raise RuntimeError("anthropic package not installed. Run: pip install anthropic")
-
-    api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
-    client = anthropic.Anthropic(api_key=api_key, timeout=600.0) if api_key else anthropic.Anthropic(timeout=600.0)
-
-    message = client.messages.create(
-        model=model,
-        max_tokens=2048,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return message.content[0].text
 
 
 # ---------------------------------------------------------------------------

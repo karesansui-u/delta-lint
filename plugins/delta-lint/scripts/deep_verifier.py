@@ -9,7 +9,6 @@ Uses claude -p (subscription CLI, $0 cost) with parallel execution.
 
 import json
 import re
-import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -17,6 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 from contract_graph import ContractMismatch, enrich_snippets
+from llm import call_llm
 
 
 # ---------------------------------------------------------------------------
@@ -101,22 +101,11 @@ def _build_verify_prompt(candidate: ContractMismatch) -> str:
 # LLM 呼び出し
 # ---------------------------------------------------------------------------
 
-def _call_claude_cli(system: str, user: str) -> Optional[str]:
-    """claude -p で LLM を呼び出す"""
-    prompt = system + "\n\n" + user
+def _call_llm_safe(system: str, user: str) -> Optional[str]:
+    """call_llm のラッパー。失敗時は None を返す（ThreadPoolExecutor 内で使用）。"""
     try:
-        result = subprocess.run(
-            ["claude", "-p"],
-            input=prompt,
-            capture_output=True, text=True, timeout=VERIFY_TIMEOUT,
-        )
-        # Hook failures (e.g. SessionEnd) cause non-zero exit even when output is valid
-        if result.stdout.strip():
-            return result.stdout.strip()
-        if result.returncode != 0:
-            return None
-        return result.stdout.strip()
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return call_llm(system, user, timeout=VERIFY_TIMEOUT).strip() or None
+    except Exception:
         return None
 
 
@@ -226,7 +215,7 @@ def verify_candidate(candidate: ContractMismatch) -> Optional[dict]:
         finding dict（contradiction の場合）or None（intentional/uncertain）
     """
     prompt = _build_verify_prompt(candidate)
-    raw = _call_claude_cli(VERIFY_SYSTEM, prompt)
+    raw = _call_llm_safe(VERIFY_SYSTEM, prompt)
     verdict = _parse_verdict(raw)
 
     if verdict is None:
