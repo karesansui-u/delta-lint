@@ -1,0 +1,26 @@
+# E2E test workflow for delta-lint action
+name: delta-lint
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: delta-lint
+        uses: ./plugins/delta-lint/action
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          mode: "review"
+          severity: "low"
+          comment_on_clean: "true"
