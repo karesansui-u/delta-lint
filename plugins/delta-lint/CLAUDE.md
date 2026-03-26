@@ -77,6 +77,57 @@ python cli.py findings list --repo /path/to/repo # Findings 一覧
 python cli.py findings dashboard --repo /path    # ダッシュボード生成
 ```
 
+## テスト戦略
+
+### Step 1: ユニットテスト（$0、LLM不要）
+
+output_formats.py の 4 フォーマッタを ScanResult モックデータで検証する。
+
+| テスト対象 | 検証内容 |
+|-----------|---------|
+| `format_sarif()` | SARIF 2.1.0 スキーマ準拠、6パターンの ruleId マッピング、severity→level 変換 |
+| `format_pr_markdown()` | Markdown 構造、severity テーブル、findings 件数の整合 |
+| `format_ci_json()` | JSON パース可能、summary フィールドの存在と型 |
+| `format_annotations()` | annotation_level の正当性、path/line の存在 |
+
+場所: `scripts/tests/test_output_formats.py`
+
+```bash
+cd scripts/ && pytest tests/test_output_formats.py -v
+```
+
+### Step 2: CLI パイプライン結合テスト（サブスク内、LLM使用）
+
+実リポジトリに対して CLI スキャンを実行し、scanner.py パイプライン全体を通す。
+
+```bash
+cd scripts/
+python cli.py scan --repo /path/to/target-repo --severity low -v
+```
+
+確認項目:
+- scanner.scan() が ScanResult を返す
+- findings.jsonl への書き込みが正常
+- --depth deep での依存チェーン解決
+
+### Step 3: GitHub Actions E2E（API コストあり、要承認）
+
+テスト用 PR を作って Actions ワークフローを実行。
+
+確認項目:
+- entrypoint.py が PR イベントで正常動作
+- PR コメント投稿（mode=review / suggest）
+- `fail_severity` による exit code 制御
+- SARIF ファイル生成 + Code Scanning アップロード
+- scope=wide（cron/release gate）での非 PR 動作
+
+前提: `ANTHROPIC_API_KEY` シークレット設定済みのリポジトリが必要。
+
+### 現在の既存テスト
+
+- `tests/test_status_meta.py` — STATUS_META 整合性
+- `tests/test_coverage_scan_history.py` — カバレッジマトリクス
+
 ## PR/コミットのルール
 
 - 「Claude Code」「Generated with」等のブランディングを入れるな

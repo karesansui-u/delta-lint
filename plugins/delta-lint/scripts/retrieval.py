@@ -1052,13 +1052,19 @@ def _find_project_file(repo: Path, candidates: list[str],
     for candidate in candidates:
         if candidate in seen:
             return None
-        full = repo / candidate
-        if full.exists() and full.is_file():
-            return candidate, full
+        # LLM may return code snippets as candidates — skip obviously invalid paths
+        if len(candidate) > 255 or "\n" in candidate or "\t" in candidate:
+            continue
+        try:
+            full = repo / candidate
+            if full.exists() and full.is_file():
+                return candidate, full
+        except OSError:
+            continue
 
     # For bare filenames (e.g., "UserService.java"), search project tree
     for candidate in candidates:
-        if "/" not in candidate and candidate not in seen:
+        if "/" not in candidate and candidate not in seen and len(candidate) <= 255:
             # Shallow search: walk top 3 directory levels
             for depth_limit_dir in repo.rglob(candidate):
                 if depth_limit_dir.is_file():
