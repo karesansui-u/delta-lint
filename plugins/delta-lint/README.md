@@ -170,7 +170,7 @@ findings.py — 永続化
 
 ### 3.2 ゼロコスト LLM 呼び出し
 
-`claude -p`（サブスク CLI、$0）がデフォルト。API は明示フォールバック。ADR-003 に「$100以上を無駄にした実績」が教訓として記録。
+`llm.py` の `call_llm()` が全 LLM 呼び出しの唯一のエントリポイント。`claude -p`（サブスク CLI、$0）がデフォルト。API は明示フォールバック。ADR-003 に「$100以上を無駄にした実績」が教訓として記録。
 
 ### 3.3 Append-Only イベントログ
 
@@ -282,9 +282,20 @@ import 解析では見つからない暗黙の依存を LLM + grep で発見。
 
 `--semantic` フラグで有効化。
 
-### 6.3 detector.py（525行）— Phase 1: LLM 検出
+### 6.3 llm.py（237行）— LLM バックエンド抽象化
 
-**3段バックエンドフォールバック**: `claude -p`(CLI) → Anthropic SDK → 生HTTP
+全 LLM 呼び出しの **Single Source of Truth**。detector / verifier / deep_verifier / fixgen が全てこのモジュール経由で LLM を呼ぶ。
+
+**3層バックエンドフォールバック**: `claude -p`(CLI, $0) → Anthropic SDK → 生HTTP（requests）
+
+**公開API**: `call_llm(system, user, *, model, backend, timeout, retries)` — バックエンド自動選択、指数バックオフリトライ対応。スレッドセーフ（ThreadPoolExecutor 内で利用可）。
+
+**バックエンド選択**:
+- `"auto"`: CLI → SDK → HTTP（利用可能なものを順に試行）
+- `"cli"`: ClaudeCLI のみ（不可時エラー）
+- `"api"`: SDK → HTTP（SDK 不可時 HTTP にフォールバック）
+
+### 6.4 detector.py（422行）— Phase 1: LLM 検出
 
 **プロンプト設計（prompts/detect.md）**:
 
@@ -302,7 +313,7 @@ import 解析では見つからない暗黙の依存を LLM + grep で発見。
 
 **リトライ**: 最大2回、指数バックオフ（1s, 2s）
 
-### 6.4 verifier.py（299行）— Phase 2: LLM 検証
+### 6.5 verifier.py（213行）— Phase 2: LLM 検証
 
 **5つの検証基準**（すべて満たす場合のみ CONFIRMED）:
 
@@ -316,7 +327,7 @@ import 解析では見つからない暗黙の依存を LLM + grep で発見。
 
 全 findings を1回の LLM 呼び出しでバッチ検証（コスト効率優先）。confidence < 0.7 で reject。バックエンド不可時は全件パススルー（graceful degradation）。
 
-### 6.5 findings.py（1896行）— JSONL 管理 + ダッシュボード
+### 6.6 findings.py（1896行）— JSONL 管理 + ダッシュボード
 
 **設計思想**: LLM は非決定的 → append-only で蓄積（ストック型）
 
@@ -342,7 +353,7 @@ import 解析では見つからない暗黙の依存を LLM + grep で発見。
 
 **ダッシュボード**: Python `string.Template`（Jinja2 ではない）。テンプレート解決は profile > repo-local > built-in。
 
-### 6.6 scoring.py（458行）+ info_theory.py（302行）— スコアリング
+### 6.7 scoring.py（458行）+ info_theory.py（302行）— スコアリング
 
 4軸の独立したスコアで優先度を多角的に評価。
 
@@ -383,7 +394,7 @@ info_score = (1/√n) × log₂(1+m) × INFO_SCALE(100)
 
 **3層マージ**: `defaults(scoring.py) ← config.json ← profile policy`。指定キーだけ上書き。
 
-### 6.7 suppress.py（305行）— サプレス管理
+### 6.8 suppress.py（305行）— サプレス管理
 
 LLM 出力に依存しないハッシュ設計:
 
@@ -391,9 +402,9 @@ LLM 出力に依存しないハッシュ設計:
 - **code_hash**: ±10行のコードハッシュ → コード変更時に自動失効
 - **SuppressEntry**: 理由(why)、理由タイプ(domain/technical/preference)、承認者の記録
 
-### 6.8 fixgen.py（262行）+ debt_loop.py（735行）— 自動修正
+### 6.9 fixgen.py（209行）+ debt_loop.py（735行）— 自動修正
 
-**fixgen.py**: LLM にソースコード + 矛盾情報を渡し、最小限の修正パッチ（old_code → new_code）を生成。
+**fixgen.py**: LLM にソースコード + 矛盾情報を渡し、最小限の修正パッチ（old_code → new_code）を生成。llm.py 経由で呼び出し。
 
 **debt_loop.py**: 負債解消の自動ループ
 
@@ -404,19 +415,19 @@ LLM 出力に依存しないハッシュ設計:
 - push 権限なしで `gh repo fork` を自動実行
 - auto-stash: 未コミット変更の退避と復元
 
-### 6.9 stress_test.py — ストレステスト + 地雷マップ
+### 6.10 stress_test.py — ストレステスト + 地雷マップ
 
 1. **Step 0**: 構造分析（LLM でリポジトリアーキテクチャを理解）
 2. **Step 0.5**: 既存バグスキャン（ホットスポットクラスタの現在の矛盾検出）
 3. **Step 1**: 仮想改修生成（LLM で「こう変更したら？」のシナリオ作成）
 4. **Step 2**: 各仮想改修をスキャン → per-file ヒートマップとして集約
 
-### 6.10 補助モジュール
+### 6.11 補助モジュール
 
 | モジュール | 責務 |
 |-----------|------|
 | cli_utils.py (771行) | 環境チェック、config/profile 読込、適応的時間窓、ベースライン管理 |
-| cmd_init.py (570行) | リポジトリ初期化（構造分析 + sibling_map 生成） |
+| cmd_init.py (204行) | リポジトリ初期化（セットアップのみ、スキャンしない） |
 | cache.py (106行) | SHA256(files+content) でスキャン結果キャッシュ。同一コンテキストはLLMスキップ |
 | git_enrichment.py | git churn(6ヶ月) / fan_out 計算。スキャン時に finding へ埋め込み |
 | sibling.py (433行) | finding / git共変更から兄弟ペアを学習 → 次回のコンテキスト構築に反映 |
@@ -538,7 +549,7 @@ policy:
 
 | 壊れるもの | 対処 |
 |-----------|------|
-| LLM API（タイムアウト、レート制限） | 指数バックオフリトライ(1s→2s)。CLI → SDK → HTTP の3層フォールバック |
+| LLM API（タイムアウト、レート制限） | llm.py で指数バックオフリトライ(1s→2s)。CLI → SDK → HTTP の3層フォールバック |
 | LLM 出力フォーマット（JSON が markdown で囲まれる等） | 4段階パーサーで順次試行。部分結果でも抽出 |
 | git 履歴（shallow clone で1件のみ） | ファイルサイズから変更頻度を推定するフォールバック |
 | JSONL の途中行の破損 | 壊れた行スキップ。append-only 設計で部分破損に耐える |
@@ -553,7 +564,7 @@ policy:
 | 構造ベース ID（LLMテキスト非依存） | findings.py `generate_id()` |
 | Semantic dedup（trigram + entity overlap） | findings.py |
 | 行番号の丸め（5行バケット） | suppress.py |
-| temperature=0 | detector.py, verifier.py |
+| temperature=0 | llm.py (AnthropicAPI/HTTPFallback) |
 | 多段パースフォールバック | detector.py `_parse_response()` |
 
 ## CLI コマンド一覧

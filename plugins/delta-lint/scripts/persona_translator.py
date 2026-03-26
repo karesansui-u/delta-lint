@@ -11,11 +11,11 @@ Falls back to template-based translation if CLI unavailable.
 """
 
 import json
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
+
+from llm import call_llm
 
 PERSONAS = ("engineer", "pm", "qa")
 
@@ -76,25 +76,12 @@ def _build_finding_text(findings: list[dict]) -> str:
 
 def _call_claude_cli(system_prompt: str, user_prompt: str,
                      model: str = "claude-sonnet-4-20250514") -> Optional[str]:
-    """Call claude -p for $0 translation. Returns None if unavailable."""
-    if not shutil.which("claude"):
-        return None
-
-    full_prompt = f"{system_prompt}\n\n---\n\n{user_prompt}"
+    """Call LLM for $0 translation. Returns None if unavailable."""
     try:
-        result = subprocess.run(
-            ["claude", "-p", "--model", model],
-            input=full_prompt,
-            capture_output=True, text=True, timeout=120,
-        )
-        # Hook failures (e.g. SessionEnd) cause non-zero exit even when output is valid
-        if result.stdout.strip():
-            return result.stdout.strip()
-        if result.returncode != 0:
-            return None
-    except (subprocess.TimeoutExpired, OSError):
-        pass
-    return None
+        result = call_llm(system_prompt, user_prompt, model=model, timeout=120)
+        return result.strip() or None
+    except (RuntimeError, Exception):
+        return None
 
 
 def _fallback_pm(findings: list[dict]) -> str:

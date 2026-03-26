@@ -18,6 +18,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from llm import call_llm
+
 from retrieval import (
     ModuleContext,
     FileContext,
@@ -107,21 +109,15 @@ def extract_assumptions(diff_content: str, verbose: bool = False) -> list[dict]:
 
     prompt = ASSUMPTION_PROMPT.format(diff=diff_content)
 
-    result = subprocess.run(
-        ["claude", "-p"],
-        input=prompt,
-        capture_output=True, text=True, timeout=120,
-    )
-
-    # Hook failures (e.g. SessionEnd) cause non-zero exit even when output is valid
-    if result.stdout.strip():
-        return _parse_assumptions(result.stdout)
-    if result.returncode != 0:
+    try:
+        raw = call_llm("", prompt, timeout=120)
+    except RuntimeError:
         if verbose:
             import sys
-            print(f"  [semantic] claude -p failed: {result.stderr[:200]}", file=sys.stderr)
+            print("  [semantic] LLM call failed", file=sys.stderr)
         return []
-    return _parse_assumptions(result.stdout)
+
+    return _parse_assumptions(raw)
 
 
 def _parse_assumptions(raw: str) -> list[dict]:

@@ -10,7 +10,7 @@ Pipeline:
   Step 1:   Virtual modification generation (claude -p, $0)
   Step 2:   Scan each modification (existing detect engine, claude -p, $0)
 
-All LLM calls use claude -p (subscription CLI) for $0 cost.
+All LLM calls use llm.py (subscription CLI → SDK → HTTP fallback) for $0 cost.
 """
 
 import argparse
@@ -30,7 +30,8 @@ from retrieval import (
     filter_source_files,
     _read_file_safe,
 )
-from detector import detect
+from detector import detect, _parse_response, build_user_prompt
+from llm import call_llm
 
 
 # ---------------------------------------------------------------------------
@@ -769,23 +770,9 @@ def _scan_cluster(
 
             # Use existing-bug-specific prompt (not the stress-test one)
             system_prompt = _load_existing_prompt(lang=lang)
-            from detector import build_user_prompt, _parse_response, _detect_cli, _cli_available
             user_prompt = build_user_prompt(context, repo_name=Path(repo_path).name)
 
-            if backend == "cli" and _cli_available():
-                raw = _detect_cli(system_prompt, user_prompt)
-            else:
-                # Fallback to standard detect with default prompt
-                findings = detect(
-                    context,
-                    repo_name=Path(repo_path).name,
-                    backend=backend,
-                )
-                findings = [f for f in findings if not f.get("parse_error")]
-                if verbose:
-                    print(f"  [{index}/{total}] Found {len(findings)} finding(s) (fallback prompt)", file=sys.stderr)
-                return {"cluster": cluster, "findings": findings}
-
+            raw = call_llm(system_prompt, user_prompt, backend=backend)
             findings = _parse_response(raw)
             findings = [f for f in findings if not f.get("parse_error")]
 
@@ -1321,18 +1308,8 @@ def run_scans(
 # ---------------------------------------------------------------------------
 
 def _call_claude(prompt: str) -> str:
-    """Call claude -p (subscription CLI, $0 cost)."""
-    try:
-        result = subprocess.run(
-            ["claude", "-p"],
-            input=prompt,
-            capture_output=True, text=True, timeout=900,  # 15 minutes (increased from 10)
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"claude -p failed: {result.stderr[:300]}")
-        return result.stdout
-    except subprocess.TimeoutExpired:
-        raise RuntimeError("claude -p timed out after 15 minutes")
+    """Call LLM via llm.py (CLI → SDK → HTTP fallback, $0 default)."""
+    return call_llm("", prompt, timeout=900)
 
 
 def _parse_json_response(raw: str) -> dict | list:

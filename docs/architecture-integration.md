@@ -112,25 +112,19 @@ def call_llm(system: str, user: str, *, model: str = DEFAULT_MODEL,
     return get_backend(backend).complete(system, user, model, timeout)
 ```
 
-**現在の重複箇所（これらを `call_llm()` に置換）:**
+**移行済みファイル（`call_llm()` に置換完了）:**
 
-| ファイル | 関数 | バックエンド | 行 |
-|---|---|---|---|
-| `detector.py` | `_detect_cli()`, `_detect_anthropic_sdk()`, `_detect_requests()` | CLI + SDK + HTTP | 421-477 |
-| `verifier.py` | `_verify_cli()`, `_verify_anthropic_sdk()`, `_verify_requests()` | CLI + SDK + HTTP | 69-125 |
-| `deep_verifier.py` | `_call_claude_cli()` | **CLI のみ**（API フォールバックなし） | 104-120 |
-| `fixgen.py` | `_generate_fix_cli()`, `_generate_fix_api()` | CLI + SDK（HTTP 直叩きなし） | 130-150+ |
-
-置換後、各ファイルは `from llm import call_llm` して自分のプロンプトを渡すだけになる。
-
-**置換時の注意:**
-
-| 呼び出し元 | 注意点 | 対応 |
+| ファイル | 旧関数 → 置換後 | 備考 |
 |---|---|---|
-| `detector.py` | `retries=2` の独自リトライ | `call_llm(retries=2)` で呼ぶ |
-| `verifier.py` | バックエンド不在時に全 findings を通す graceful degradation | `call_llm()` の外（verifier 側の try/except）で維持 |
-| `deep_verifier.py` | `ThreadPoolExecutor` で並列呼び出し | `call_llm()` はスレッドセーフにする。並列制御は呼び出し元に残す |
-| `fixgen.py` | finding 単位でループ呼び出し | そのまま。`call_llm()` 側の変更不要 |
+| `detector.py` | `_detect_cli()` 等 3関数 → `call_llm(retries=2)` | −71行。リトライは `call_llm` 側で処理 |
+| `verifier.py` | `_verify_cli()` 等 3関数 → `call_llm()` | −65行。graceful degradation は verifier 側 try/except で維持 |
+| `deep_verifier.py` | `_call_claude_cli()` → `call_llm()` ラッパー | −12行。ThreadPoolExecutor はそのまま |
+| `fixgen.py` | `_generate_fix_cli()` 等 → `call_llm()` | −40行。finding 単位ループ維持 |
+| `stress_test.py` | `_call_claude()` → `call_llm()` ラッパー + 壊れた detector import 修正 | git 系 subprocess は残存（正常） |
+| `persona_translator.py` | `_call_claude_cli()` → `call_llm()` | フォールバック（テンプレート翻訳）維持 |
+| `semantic.py` | 直接 `subprocess.run(["claude"])` → `call_llm()` | git 系 subprocess は残存（正常） |
+
+全ファイルが `from llm import call_llm` 経由。`subprocess.run(["claude"` の直接呼び出しはゼロ。
 
 ### 3.2 scanner.py — 検出パイプライン
 
@@ -412,23 +406,14 @@ plugins/delta-lint/
 
 ## 7. 段階的マイグレーション計画
 
-### Phase 1: llm.py 抽出（最小工数・最大効果）
+### Phase 1: llm.py 抽出（✅ 完了）
 
-**やること:**
-1. `scripts/llm.py` を新規作成（`call_llm()` + バックエンド実装）
-   - `ClaudeCLI`: `subprocess.run(["claude", "-p"], ...)` — ローカル用（$0）
-   - `AnthropicAPI`: `anthropic.Anthropic().messages.create()` — CI 用
-   - `HTTPFallback`: `requests.post()` — SDK なし環境用
-   - `retries` パラメータ（exponential backoff）
-   - スレッドセーフ（deep_verifier の ThreadPoolExecutor 対応）
-2. `detector.py`: `_detect_cli()`, `_detect_anthropic_sdk()`, `_detect_requests()` を `call_llm(retries=2)` に置換
-3. `verifier.py`: `_verify_cli()`, `_verify_anthropic_sdk()`, `_verify_requests()` を `call_llm()` に置換。graceful degradation（バックエンド不在時に全 findings を通す）は verifier 側の try/except で維持
-4. `deep_verifier.py`: `_call_claude_cli()` を `call_llm()` に置換。ThreadPoolExecutor はそのまま呼び出し元に残す
-5. `fixgen.py`: `_generate_fix_cli()`, `_generate_fix_api()` を `call_llm()` に置換
+**実施内容:**
+1. `scripts/llm.py`（237行）を新規作成 — `call_llm()` + 3 バックエンド（ClaudeCLI / AnthropicAPI / HTTPFallback）
+2. 7ファイルの LLM 呼び出しを `call_llm()` に統一（detector / verifier / deep_verifier / fixgen / stress_test / persona_translator / semantic）
+3. `subprocess.run(["claude"` の直接呼び出しをゼロに（git 系 subprocess は正常に残存）
 
-**効果:** LLM バックエンド切替が 1 箇所に集約。CI 対応の土台完成。
-**リスク:** 低。内部リファクタのみ、外部インターフェース不変。
-**見積もり規模:** 約 200 行の新規コード + 4 ファイルから約 160 行の重複削除。
+**結果:** +237行（llm.py）、−240行以上（7ファイルの重複削除）。LLM バックエンド切替が 1 箇所に集約。CI 対応の土台完成。
 
 ### Phase 2: scanner.py + output フォーマッター
 
