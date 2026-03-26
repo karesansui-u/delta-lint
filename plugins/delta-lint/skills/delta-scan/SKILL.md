@@ -5,7 +5,7 @@ description: >
   where one module's assumptions contradict another's behavior. Auto-initializes
   on first run (no separate init needed). Use when user says "delta scan",
   "delta-scan", "delta init", "delta-init", "構造矛盾チェック", "デグレチェック",
-  "地雷マップ作って", "suppress finding", "suppress check", "findings", "バグ記録",
+  "地雷マップ作って", "ストレステスト", "suppress finding", "suppress check", "findings", "バグ記録",
   "PRレビュー", "PRスキャン", "PR scan", "review PR", "scan PR", "プルリクチェック",
   or when user mentions a dl- prefixed ID (e.g. "dl-65edfb5a を調査して").
   NOT a style linter or generic bug finder.
@@ -36,7 +36,6 @@ All scripts are in: `scripts/` (relative to the plugin root).
 Only treat it as an error if stderr contains a Python traceback or "Error:" prefix.
 
 **NEVER use `--files` to manually select files.** Always let cli.py handle file selection. The CLI has `--since 3months` default + `--scope smart` fallback. Manually picking files bypasses this and drastically reduces scan quality.
-**唯一の例外**: init のファーストブラッド（Step 2.1.5）では、structure.json のホットスポットに基づいて `--files` を自動選択する。これは構造分析結果に基づく自動選択であり、手動選択ではない。
 
 **Scan は「記録して終わり」ではない。** findings 記録後、自動で全件の詳細調査（ソースコード精読→矛盾の実在確認→ステータス更新）まで実行する。ユーザーの指示を待たない。詳細は [workflow-scan.md Step 7](references/workflow-scan.md)。
 
@@ -46,7 +45,7 @@ Only treat it as an error if stderr contains a Python traceback or "Error:" pref
 
 | Workflow | Trigger | Reference |
 |----------|---------|-----------|
-| **Init** | "delta init", "地雷マップ作って", or auto on first scan | [workflow-init.md](references/workflow-init.md) |
+| **Init** | "delta init", "初期化", or auto on first scan | [workflow-init.md](references/workflow-init.md) |
 | **Scan** | "delta-scan", default | [workflow-scan.md](references/workflow-scan.md) (scan→記録→**自動調査→ステータス更新**まで一気通貫) |
 | **PR Scan** | "PRレビュー", "PR scan", "review PR", "プルリクチェック" | [workflow-scan.md](references/workflow-scan.md) (PR mode) |
 | **Stress Test** | "ストレステスト", "stress test", "地雷マップ更新", "--lens stress", "フルスキャン" | [workflow-stress.md](references/workflow-stress.md) |
@@ -57,8 +56,8 @@ Only treat it as an error if stderr contains a Python traceback or "Error:" pref
 
 ### Routing logic
 
-1. User says "delta init", "地雷マップ作って" → **Init**（リッチ初期化体験）
-2. User mentions stress/lens stress/ストレステスト/フルスキャン/地雷マップ更新/`--lens stress` → **Stress Test**（バックグラウンド実行）
+1. User says "delta init", "初期化" → **Init**（セットアップのみ。スキャンしない）
+2. User mentions stress/lens stress/ストレステスト/フルスキャン/地雷マップ作って/地雷マップ更新/`--lens stress` → **Stress Test**（バックグラウンド実行）
 3. User says "delta-scan" or just `/delta-scan`（stress 以外） → **Scan**（初回なら auto-init 後に scan）
 4. User mentions PR/プルリク/レビュー ("PRレビュー", "PR scan", "review PR", "プルリクスキャン", "PRチェック") → **PR Scan** (= Scan with `--scope pr`)
 5. User mentions a `dl-` prefixed ID (e.g. "dl-65edfb5a 調べて") → **Investigate Finding**

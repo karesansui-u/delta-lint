@@ -8,14 +8,10 @@ ls {repo_path}/.delta-lint/stress-test/structure.json 2>/dev/null
 
 If `.delta-lint/` does not exist or structure.json is missing:
 
-→ **[workflow-init.md](workflow-init.md) の全フローを実行する。**
+→ **[workflow-init.md](workflow-init.md) を実行する。**
 
-初回スキャン時にリッチな初期化体験（構造分析→ホットスポット表示→既存バグ検出→ストレステスト→ヒートマップ）を自動提供する。
-ユーザーが「delta init」と明示的に言った場合も同じフローが走る。
-
+init はセットアップのみ（構造解析 + sibling_map + CLAUDE.md guard）。スキャンは行わない。
 init 完了後、Step 0 に進んでスキャンを続行する。
-**init 中に記録された findings（`found_by: delta-init` / `found_by: first-blood`）も Step 7 の調査対象に含まれる。** init 由来だからといって `found` のまま放置しない。
-**ファーストブラッド（init Step 2.1.5）で `confirmed` 済みの finding は、Step 7 で再調査不要。** ステータスが既に `confirmed` なので完走チェックでも `found` にカウントされない。
 
 If `.delta-lint/` already exists, skip this step entirely.
 

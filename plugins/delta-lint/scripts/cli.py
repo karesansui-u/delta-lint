@@ -376,7 +376,7 @@ def cmd_view(args):
     has_findings = any((delta_dir / "findings").glob("*.jsonl")) if (delta_dir / "findings").exists() else False
 
     # Auto-recover: existing_findings.json exists but JSONL is empty
-    # (init was interrupted after scan_existing but before JSONL conversion)
+    # (stress test was interrupted after scan_existing but before JSONL conversion)
     if not has_findings:
         existing_json = delta_dir / "stress-test" / "existing_findings.json"
         if existing_json.exists():

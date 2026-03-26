@@ -1728,7 +1728,7 @@ def cmd_scan(args):
 def _recover_existing_findings(repo_path: str, existing_json: Path) -> int:
     """Recover findings from existing_findings.json into JSONL.
 
-    Called when init was interrupted: scan_existing wrote results to
+    Called when stress test was interrupted: scan_existing wrote results to
     existing_findings.json but the JSONL conversion loop didn't complete.
     """
     import json as _json
@@ -1762,7 +1762,7 @@ def _recover_existing_findings(repo_path: str, existing_json: Path) -> int:
                     title=title,
                     description=f.get("impact", f.get("user_impact", "")),
                     category=f.get("category", "contradiction"),
-                    found_by="delta-init (recovered)",
+                    found_by="stress-test (recovered)",
                     churn_6m=f.get("churn_6m", 0),
                     fan_out=f.get("fan_out", 0),
                     total_lines=f.get("total_lines", 0),

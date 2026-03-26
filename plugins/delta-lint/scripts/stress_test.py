@@ -1620,7 +1620,7 @@ def run_stress_test(
                         pattern=pattern, title=title,
                         description=f.get("impact", f.get("user_impact", "")),
                         category=f.get("category", "contradiction"),
-                        found_by="delta-init",
+                        found_by="stress-test",
                         churn_6m=f.get("churn_6m", 0),
                         fan_out=f.get("fan_out", 0),
                         total_lines=f.get("total_lines", 0),

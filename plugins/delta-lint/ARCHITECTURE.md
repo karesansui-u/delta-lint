@@ -54,7 +54,7 @@ scripts/
 ├── intro_animation.py      # TUI アニメーション（デモ用）
 ├── prompts/
 │   ├── detect.md           # 検出プロンプト（6+4 パターン定義）
-│   ├── detect_existing.md  # 既存バグスキャン用プロンプト
+│   ├── detect_existing.md  # scan_existing 用プロンプト（stress test から使用）
 │   ├── verify.md           # Phase 2 検証プロンプト
 │   ├── structure_analysis.md    # 構造分析プロンプト
 │   ├── generate_modifications.md      # 仮想改修生成
