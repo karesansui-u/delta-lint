@@ -1,0 +1,82 @@
+{
+  "experiment": "phase_minus1_pilot_v2",
+  "pattern": "④ Guard Non-Propagation",
+  "severity": "high",
+  "scenario": "timeout asymmetry (30s gateway vs 300s provider)",
+  "context_files": 8,
+  "model": "claude-sonnet-4-20250514",
+  "temperature": 0.7,
+  "n_trials": 1,
+  "n_questions": 3,
+  "acc_a": 1.0,
+  "acc_b": 1.0,
+  "i_nats": -0.0,
+  "ci_a_95": [
+    0.43849391955098227,
+    1.0
+  ],
+  "ci_b_95": [
+    0.43849391955098227,
+    1.0
+  ],
+  "acc_by_question_a": {
+    "0": 1.0,
+    "1": 1.0,
+    "2": 1.0
+  },
+  "acc_by_question_b": {
+    "0": 1.0,
+    "1": 1.0,
+    "2": 1.0
+  },
+  "trials": [
+    {
+      "condition": "A",
+      "question_idx": 0,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 1,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 2,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 0,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 1,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 2,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    }
+  ]
+}

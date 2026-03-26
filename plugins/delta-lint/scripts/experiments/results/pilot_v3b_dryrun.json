@@ -1,0 +1,152 @@
+{
+  "experiment": "phase_minus1_pilot_v3b",
+  "pattern": "④ Guard Non-Propagation (soft delete variant)",
+  "severity": "high",
+  "scenario": "soft delete — visible DELETE endpoint, hidden soft-delete implementation",
+  "protocol": "partial_context",
+  "model": "claude-sonnet-4-20250514",
+  "temperature": 0.7,
+  "n_trials": 2,
+  "n_questions": 3,
+  "acc_a": 0.3333333333333333,
+  "acc_b": 1.0,
+  "i_nats": 1.0986122886681098,
+  "ci_a_95": [
+    0.09676933255921683,
+    0.7000116786584712
+  ],
+  "ci_b_95": [
+    0.6096569663469354,
+    0.9999999999999999
+  ],
+  "acc_by_question_a": {
+    "0": 0.0,
+    "1": 1.0,
+    "2": 0.0
+  },
+  "acc_by_question_b": {
+    "0": 1.0,
+    "1": 1.0,
+    "2": 1.0
+  },
+  "response_dist_a": {
+    "0": {
+      "A": 2
+    },
+    "1": {
+      "A": 2
+    },
+    "2": {
+      "C": 2
+    }
+  },
+  "response_dist_b": {
+    "0": {
+      "B": 2
+    },
+    "1": {
+      "A": 2
+    },
+    "2": {
+      "B": 2
+    }
+  },
+  "trials": [
+    {
+      "condition": "A",
+      "question_idx": 0,
+      "trial": 0,
+      "raw_response": "A",
+      "extracted": "A",
+      "correct": false
+    },
+    {
+      "condition": "A",
+      "question_idx": 0,
+      "trial": 1,
+      "raw_response": "A",
+      "extracted": "A",
+      "correct": false
+    },
+    {
+      "condition": "A",
+      "question_idx": 1,
+      "trial": 0,
+      "raw_response": "A",
+      "extracted": "A",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 1,
+      "trial": 1,
+      "raw_response": "A",
+      "extracted": "A",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 2,
+      "trial": 0,
+      "raw_response": "C",
+      "extracted": "C",
+      "correct": false
+    },
+    {
+      "condition": "A",
+      "question_idx": 2,
+      "trial": 1,
+      "raw_response": "C",
+      "extracted": "C",
+      "correct": false
+    },
+    {
+      "condition": "B",
+      "question_idx": 0,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 0,
+      "trial": 1,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 1,
+      "trial": 0,
+      "raw_response": "A",
+      "extracted": "A",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 1,
+      "trial": 1,
+      "raw_response": "A",
+      "extracted": "A",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 2,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 2,
+      "trial": 1,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    }
+  ]
+}

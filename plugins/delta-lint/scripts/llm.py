@@ -30,7 +30,8 @@ DEFAULT_TIMEOUT = 600  # seconds
 class LLMBackend(Protocol):
     """Any LLM backend must implement this."""
 
-    def complete(self, system: str, user: str, model: str, timeout: int) -> str: ...
+    def complete(self, system: str, user: str, model: str, timeout: int,
+                 temperature: float = 0.0) -> str: ...
 
 
 # ---------------------------------------------------------------------------
@@ -40,7 +41,8 @@ class LLMBackend(Protocol):
 class ClaudeCLI:
     """claude -p (subscription CLI, $0 cost). Default for local use."""
 
-    def complete(self, system: str, user: str, model: str, timeout: int) -> str:
+    def complete(self, system: str, user: str, model: str, timeout: int,
+                 temperature: float = 0.0) -> str:
         prompt = system + "\n\n" + user
         result = subprocess.run(
             ["claude", "-p"],
@@ -58,7 +60,8 @@ class ClaudeCLI:
 class AnthropicAPI:
     """Anthropic SDK (API key required). Default for CI."""
 
-    def complete(self, system: str, user: str, model: str, timeout: int) -> str:
+    def complete(self, system: str, user: str, model: str, timeout: int,
+                 temperature: float = 0.0) -> str:
         try:
             import anthropic
         except ImportError:
@@ -75,7 +78,7 @@ class AnthropicAPI:
         message = client.messages.create(
             model=model,
             max_tokens=4096,
-            temperature=0,
+            temperature=temperature,
             system=system,
             messages=[{"role": "user", "content": user}],
         )
@@ -85,7 +88,8 @@ class AnthropicAPI:
 class HTTPFallback:
     """Raw HTTP via requests (fallback if SDK not installed)."""
 
-    def complete(self, system: str, user: str, model: str, timeout: int) -> str:
+    def complete(self, system: str, user: str, model: str, timeout: int,
+                 temperature: float = 0.0) -> str:
         try:
             import requests as req_lib
         except ImportError:
@@ -108,7 +112,7 @@ class HTTPFallback:
             json={
                 "model": model,
                 "max_tokens": 4096,
-                "temperature": 0,
+                "temperature": temperature,
                 "system": system,
                 "messages": [{"role": "user", "content": user}],
             },
@@ -201,6 +205,7 @@ def call_llm(
     backend: str = "auto",
     timeout: int = DEFAULT_TIMEOUT,
     retries: int = 0,
+    temperature: float = 0.0,
 ) -> str:
     """Call LLM. Single entry point for all delta-lint LLM calls.
 
@@ -212,6 +217,7 @@ def call_llm(
         timeout: Seconds per attempt.
         retries: Retry count on failure (exponential backoff: 1s, 2s, 4s...).
                  detector uses retries=2. Others default to 0.
+        temperature: Sampling temperature (0.0 = deterministic).
 
     Returns:
         LLM response text.
@@ -223,7 +229,7 @@ def call_llm(
 
     for attempt in range(retries + 1):
         try:
-            return be.complete(system, user, model, timeout)
+            return be.complete(system, user, model, timeout, temperature)
         except Exception as exc:
             if attempt < retries:
                 wait = 2 ** attempt  # 1s, 2s, 4s...

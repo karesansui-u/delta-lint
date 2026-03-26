@@ -1,0 +1,514 @@
+{
+  "experiment": "phase_minus1_pilot_v2",
+  "pattern": "④ Guard Non-Propagation",
+  "severity": "high",
+  "scenario": "timeout asymmetry (30s gateway vs 300s provider)",
+  "context_files": 8,
+  "model": "claude-haiku-4-5-20251001",
+  "temperature": 0.7,
+  "n_trials": 10,
+  "n_questions": 3,
+  "acc_a": 1.0,
+  "acc_b": 1.0,
+  "i_nats": -0.0,
+  "ci_a_95": [
+    0.8864829086095221,
+    1.0
+  ],
+  "ci_b_95": [
+    0.8864829086095221,
+    1.0
+  ],
+  "acc_by_question_a": {
+    "0": 1.0,
+    "1": 1.0,
+    "2": 1.0
+  },
+  "acc_by_question_b": {
+    "0": 1.0,
+    "1": 1.0,
+    "2": 1.0
+  },
+  "trials": [
+    {
+      "condition": "A",
+      "question_idx": 0,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 0,
+      "trial": 1,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 0,
+      "trial": 2,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 0,
+      "trial": 3,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 0,
+      "trial": 4,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 0,
+      "trial": 5,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 0,
+      "trial": 6,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 0,
+      "trial": 7,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 0,
+      "trial": 8,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 0,
+      "trial": 9,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 1,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 1,
+      "trial": 1,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 1,
+      "trial": 2,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 1,
+      "trial": 3,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 1,
+      "trial": 4,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 1,
+      "trial": 5,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 1,
+      "trial": 6,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 1,
+      "trial": 7,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 1,
+      "trial": 8,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 1,
+      "trial": 9,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 2,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 2,
+      "trial": 1,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 2,
+      "trial": 2,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 2,
+      "trial": 3,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 2,
+      "trial": 4,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 2,
+      "trial": 5,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 2,
+      "trial": 6,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 2,
+      "trial": 7,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 2,
+      "trial": 8,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 2,
+      "trial": 9,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 0,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 0,
+      "trial": 1,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 0,
+      "trial": 2,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 0,
+      "trial": 3,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 0,
+      "trial": 4,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 0,
+      "trial": 5,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 0,
+      "trial": 6,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 0,
+      "trial": 7,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 0,
+      "trial": 8,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 0,
+      "trial": 9,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 1,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 1,
+      "trial": 1,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 1,
+      "trial": 2,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 1,
+      "trial": 3,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 1,
+      "trial": 4,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 1,
+      "trial": 5,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 1,
+      "trial": 6,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 1,
+      "trial": 7,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 1,
+      "trial": 8,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 1,
+      "trial": 9,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 2,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 2,
+      "trial": 1,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 2,
+      "trial": 2,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 2,
+      "trial": 3,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 2,
+      "trial": 4,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 2,
+      "trial": 5,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 2,
+      "trial": 6,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 2,
+      "trial": 7,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 2,
+      "trial": 8,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 2,
+      "trial": 9,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    }
+  ]
+}
