@@ -29,9 +29,13 @@ inputs:
     required: false
     default: "false"
   fail_on_findings:
-    description: "Fail the workflow when findings are detected (true/false)"
+    description: "Fail the workflow when findings are detected (true/false). Prefer fail_severity for finer control."
     required: false
     default: "false"
+  fail_severity:
+    description: "Fail if findings at this severity or above exist (high/medium/low/none). Overrides fail_on_findings."
+    required: false
+    default: "none"
 
 outputs:
   findings_count:
@@ -66,4 +70,5 @@ runs:
           --model "${{ inputs.model }}" \
           --max-diff-files "${{ inputs.max_diff_files }}" \
           --comment-on-clean "${{ inputs.comment_on_clean }}" \
-          --fail-on-findings "${{ inputs.fail_on_findings }}"
+          --fail-on-findings "${{ inputs.fail_on_findings }}" \
+          --fail-severity "${{ inputs.fail_severity }}"

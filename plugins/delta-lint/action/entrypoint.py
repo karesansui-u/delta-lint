@@ -120,30 +120,39 @@ def filter_scannable_files(files: list[str]) -> list[str]:
     return filter_source_files(files)
 
 
-def run_scan(files: list[str], severity: str, model: str) -> dict:
-    from retrieval import build_context
-    from detector import detect
-    from output import filter_findings
-    from suppress import load_suppressions
+def get_pr_diff_text() -> str:
+    """Get PR diff via gh api (works even when base branch is not fetched)."""
+    repo = get_repo()
+    pr_number = get_pr_number()
+    result = subprocess.run(
+        ["gh", "api", f"repos/{repo}/pulls/{pr_number}",
+         "-H", "Accept: application/vnd.github.v3.diff"],
+        capture_output=True, text=True, timeout=60,
+    )
+    if result.returncode != 0:
+        print(f"  Warning: could not fetch PR diff via API: {result.stderr}",
+              file=sys.stderr)
+        return ""
+    return result.stdout
+
+
+def run_scan(files: list[str], severity: str, model: str):
+    """Run scan via scanner.scan() — returns ScanResult."""
+    from scanner import scan as engine_scan
 
     repo_path = os.environ.get("GITHUB_WORKSPACE", ".")
-    context = build_context(repo_path, files)
-    if not context.target_files:
-        return {"findings": [], "filtered": 0, "suppressed": 0, "expired": 0,
-                "context": context}
+    diff_text = get_pr_diff_text()
 
-    findings = detect(context, repo_name=get_repo(), model=model)
-    suppressions = load_suppressions(repo_path)
-    result = filter_findings(findings, min_severity=severity,
-                             suppressions=suppressions, repo_path=repo_path)
-
-    return {
-        "findings": result.shown,
-        "filtered": len(result.filtered),
-        "suppressed": len(result.suppressed),
-        "expired": len(result.expired),
-        "context": context,
-    }
+    return engine_scan(
+        repo_path, files,
+        model=model,
+        backend="api",
+        severity=severity,
+        scope="pr",
+        no_cache=True,
+        on_finding=None,
+        diff_text=diff_text,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -158,43 +167,9 @@ from fixgen import generate_fixes  # noqa: E402 — imported after sys.path setu
 # Mode: review (comment only)
 # ---------------------------------------------------------------------------
 
-def format_review_comment(scan_result: dict, files: list[str],
-                          severity: str, mode: str) -> str:
-    findings = scan_result["findings"]
-    filtered = scan_result["filtered"]
-    suppressed = scan_result["suppressed"]
-    expired = scan_result.get("expired", 0)
-
-    lines = []
-    lines.append(f"## 🔍 delta-lint: Structural Contradiction Report\n")
-
-    if not findings:
-        lines.append(f"No structural contradictions detected in {len(files)} file(s).")
-        if suppressed:
-            lines.append(f"\n*({suppressed} suppressed)*")
-        if filtered:
-            lines.append(f"\n*({filtered} below `{severity}` severity, filtered)*")
-        return "\n".join(lines)
-
-    severity_icon = {"high": "🔴", "medium": "🟡", "low": "⚪"}
-
-    # --- Summary table (landmine map mini) ---
-    high_count = sum(1 for f in findings if f.get("severity", "").lower() == "high")
-    med_count = sum(1 for f in findings if f.get("severity", "").lower() == "medium")
-    low_count = sum(1 for f in findings if f.get("severity", "").lower() == "low")
-
-    lines.append(f"**{len(findings)} contradiction(s)** found in {len(files)} file(s)."
-                 f" Mode: `{mode}`\n")
-
-    # KPI bar
-    lines.append(f"> 🔴 High: **{high_count}** &nbsp;|&nbsp; "
-                 f"🟡 Medium: **{med_count}** &nbsp;|&nbsp; "
-                 f"⚪ Low: **{low_count}**"
-                 f"{' &nbsp;|&nbsp; 🔕 Suppressed: ' + str(suppressed) if suppressed else ''}"
-                 f"\n")
-
-    # --- Affected files heatmap table ---
-    file_hits: dict[str, dict] = {}  # file -> {high: n, medium: n, low: n}
+def _render_heatmap(findings: list[dict]) -> str:
+    """Render affected files heatmap (CI-specific, depends on finding locations)."""
+    file_hits: dict[str, dict] = {}
     for f in findings:
         if f.get("parse_error"):
             continue
@@ -206,82 +181,77 @@ def format_review_comment(scan_result: dict, files: list[str],
                 if fp not in file_hits:
                     file_hits[fp] = {"high": 0, "medium": 0, "low": 0}
                 file_hits[fp][sev] = file_hits[fp].get(sev, 0) + 1
+    if not file_hits:
+        return ""
+    sorted_files = sorted(
+        file_hits.items(),
+        key=lambda x: (x[1].get("high", 0), sum(x[1].values())),
+        reverse=True,
+    )
+    lines = ["<details><summary>Affected files heatmap</summary>\n"]
+    lines.append("| File | :red_circle: | :orange_circle: | :white_circle: | Total |")
+    lines.append("|------|-----|-----|-----|-------|")
+    for fp, counts in sorted_files[:15]:
+        total = sum(counts.values())
+        h = counts.get("high", 0) or ""
+        m = counts.get("medium", 0) or ""
+        lo = counts.get("low", 0) or ""
+        lines.append(f"| `{fp}` | {h} | {m} | {lo} | {total} |")
+    if len(sorted_files) > 15:
+        lines.append(f"| *... +{len(sorted_files) - 15} more* | | | | |")
+    lines.append("\n</details>\n")
+    return "\n".join(lines)
 
-    if file_hits:
-        # Sort by total hits descending, then high count
-        sorted_files = sorted(
-            file_hits.items(),
-            key=lambda x: (x[1].get("high", 0), sum(x[1].values())),
-            reverse=True,
-        )
-        lines.append("<details><summary>📊 Affected files heatmap</summary>\n")
-        lines.append("| File | 🔴 | 🟡 | ⚪ | Total |")
-        lines.append("|------|-----|-----|-----|-------|")
-        for fp, counts in sorted_files[:15]:
-            total = sum(counts.values())
-            h = counts.get("high", 0) or ""
-            m = counts.get("medium", 0) or ""
-            lo = counts.get("low", 0) or ""
-            lines.append(f"| `{fp}` | {h} | {m} | {lo} | {total} |")
-        if len(sorted_files) > 15:
-            lines.append(f"| *... +{len(sorted_files) - 15} more* | | | | |")
-        lines.append("\n</details>\n")
 
-    # --- Pattern distribution ---
+def _render_pattern_dist(findings: list[dict]) -> str:
+    """Render pattern distribution table (CI-specific)."""
     pattern_counts: dict[str, int] = {}
     for f in findings:
         if not f.get("parse_error"):
             p = f.get("pattern", "?")
             pattern_counts[p] = pattern_counts.get(p, 0) + 1
-    if len(pattern_counts) > 1:
-        lines.append("<details><summary>🏷️ Pattern distribution</summary>\n")
-        lines.append("| Pattern | Count |")
-        lines.append("|---------|-------|")
-        for p, c in sorted(pattern_counts.items(), key=lambda x: -x[1]):
-            lines.append(f"| {p} | {c} |")
-        lines.append("\n</details>\n")
-
-    # --- Individual findings ---
-    for i, f in enumerate(findings, 1):
-        if f.get("parse_error"):
-            lines.append(f"### {i}. ⚠️ Parse Error")
-            lines.append(f"```\n{f.get('raw_response', 'N/A')[:300]}\n```\n")
-            continue
-
-        pattern = f.get("pattern", "?")
-        sev = f.get("severity", "medium").lower()
-        icon = severity_icon.get(sev, "⚪")
-        expired_tag = " ⏰ *expired suppress*" if f.get("_expired_suppress") else ""
-
-        lines.append(f"### {i}. {icon} Pattern {pattern} ({sev}){expired_tag}\n")
-
-        loc = f.get("location", {})
-        if isinstance(loc, dict):
-            lines.append(f"**File A**: `{loc.get('file_a', '?')}`")
-            if loc.get("detail_a"):
-                lines.append(f"> {loc['detail_a']}")
-            lines.append(f"**File B**: `{loc.get('file_b', '?')}`")
-            if loc.get("detail_b"):
-                lines.append(f"> {loc['detail_b']}")
-            lines.append("")
-
-        if f.get("contradiction"):
-            lines.append(f"**Contradiction**: {f['contradiction']}\n")
-        if f.get("impact"):
-            lines.append(f"**Impact**: {f['impact']}\n")
-
-    footer_parts = []
-    if filtered:
-        footer_parts.append(f"{filtered} below `{severity}` severity")
-    if suppressed:
-        footer_parts.append(f"{suppressed} suppressed")
-    if expired:
-        footer_parts.append(f"{expired} expired suppressions (re-shown)")
-    if footer_parts:
-        lines.append(f"---\n*{', '.join(footer_parts)}*\n")
-
-    lines.append("<sub>Powered by <a href=\"https://github.com/karesansui-u/DeltaRegret\">delta-lint</a></sub>")
+    if len(pattern_counts) <= 1:
+        return ""
+    lines = ["<details><summary>Pattern distribution</summary>\n"]
+    lines.append("| Pattern | Count |")
+    lines.append("|---------|-------|")
+    for p, c in sorted(pattern_counts.items(), key=lambda x: -x[1]):
+        lines.append(f"| {p} | {c} |")
+    lines.append("\n</details>\n")
     return "\n".join(lines)
+
+
+def format_review_comment(scan_result, files: list[str],
+                          severity: str, mode: str) -> str:
+    """Format PR comment using output_formats.format_pr_markdown() as base,
+    with CI-specific heatmap and pattern distribution appended."""
+    from output_formats import format_pr_markdown
+
+    base = format_pr_markdown(scan_result, repo_name=get_repo())
+
+    if not scan_result.shown:
+        return base
+
+    # Insert heatmap and pattern distribution before the footer
+    heatmap = _render_heatmap(scan_result.shown)
+    pattern_dist = _render_pattern_dist(scan_result.shown)
+
+    # Append CI-specific sections
+    extra = ""
+    if heatmap:
+        extra += "\n" + heatmap
+    if pattern_dist:
+        extra += "\n" + pattern_dist
+
+    if extra:
+        # Insert before the footer line (---) if present, else append
+        if "\n---\n" in base:
+            parts = base.split("\n---\n", 1)
+            base = parts[0] + extra + "\n---\n" + parts[1]
+        else:
+            base = base.rstrip("\n") + "\n" + extra
+
+    return base
 
 
 def post_or_update_comment(body: str) -> int | None:
@@ -309,6 +279,85 @@ def post_or_update_comment(body: str) -> int | None:
         comment_id = resp.get("id") if isinstance(resp, dict) else None
         print(f"Created comment {comment_id}", file=sys.stderr)
         return comment_id
+
+
+# ---------------------------------------------------------------------------
+# Check Run annotations
+# ---------------------------------------------------------------------------
+
+def get_head_sha() -> str:
+    """Get HEAD commit SHA."""
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        capture_output=True, text=True, timeout=10,
+    )
+    return result.stdout.strip()
+
+
+def post_check_annotations(scan_result):
+    """Post Check Run with annotations via GitHub Checks API."""
+    from output_formats import format_annotations
+
+    annotations = format_annotations(scan_result)
+    repo = get_repo()
+    head_sha = get_head_sha()
+
+    n_findings = len(scan_result.shown)
+    conclusion = "success" if n_findings == 0 else "neutral"
+    title = f"delta-lint: {n_findings} finding(s)" if n_findings else "delta-lint: clean"
+    summary = f"{n_findings} structural contradiction(s) detected." if n_findings else "No contradictions found."
+
+    # GitHub Checks API limits to 50 annotations per request
+    batch_size = 50
+    first_batch = annotations[:batch_size]
+
+    check_body = {
+        "name": "delta-lint",
+        "head_sha": head_sha,
+        "status": "completed",
+        "conclusion": conclusion,
+        "output": {
+            "title": title,
+            "summary": summary,
+            "annotations": first_batch,
+        },
+    }
+
+    try:
+        result = subprocess.run(
+            ["gh", "api", "--method", "POST",
+             f"repos/{repo}/check-runs",
+             "--input", "-"],
+            input=json.dumps(check_body),
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode == 0:
+            print(f"  Check Run created: {title}", file=sys.stderr)
+            # Post remaining annotations in batches via update
+            if len(annotations) > batch_size:
+                check_run = json.loads(result.stdout)
+                check_run_id = check_run.get("id")
+                for i in range(batch_size, len(annotations), batch_size):
+                    batch = annotations[i:i + batch_size]
+                    update_body = {
+                        "output": {
+                            "title": title,
+                            "summary": summary,
+                            "annotations": batch,
+                        },
+                    }
+                    subprocess.run(
+                        ["gh", "api", "--method", "PATCH",
+                         f"repos/{repo}/check-runs/{check_run_id}",
+                         "--input", "-"],
+                        input=json.dumps(update_body),
+                        capture_output=True, text=True, timeout=30,
+                    )
+        else:
+            print(f"  Warning: Check Run creation failed: {result.stderr}",
+                  file=sys.stderr)
+    except Exception as e:
+        print(f"  Warning: Check Run creation failed: {e}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
@@ -521,6 +570,8 @@ def main():
     parser.add_argument("--max-diff-files", type=int, default=20)
     parser.add_argument("--comment-on-clean", default="false")
     parser.add_argument("--fail-on-findings", default="false")
+    parser.add_argument("--fail-severity", default="none",
+                        choices=["high", "medium", "low", "none"])
     args = parser.parse_args()
 
     # 0. If triggered by comment, add 👀 reaction to acknowledge
@@ -561,10 +612,13 @@ def main():
     print(f"Running delta-lint scan (mode={args.mode}, model={args.model}, "
           f"severity>={args.severity})...", file=sys.stderr)
     scan_result = run_scan(source_files, args.severity, args.model)
-    findings = scan_result["findings"]
+    findings = scan_result.shown
     findings_count = len(findings)
     print(f"  {findings_count} finding(s)", file=sys.stderr)
     set_output("findings_count", str(findings_count))
+
+    # 3.5. Post Check Run annotations (always, even if 0 findings)
+    post_check_annotations(scan_result)
 
     # 4. No findings — optional clean comment
     if findings_count == 0:
@@ -585,21 +639,31 @@ def main():
 
     elif args.mode == "suggest":
         print("Generating fixes for suggested changes...", file=sys.stderr)
-        fixes = generate_fixes(findings, scan_result.get("context"), args.model)
+        fixes = generate_fixes(findings, scan_result.context, args.model)
         print(f"  {len(fixes)} fix(es) generated", file=sys.stderr)
         post_suggestions(findings, fixes, scan_result, source_files, args.severity)
         fixed_count = len(fixes)
 
     elif args.mode == "autofix":
         print("Generating fixes for autofix...", file=sys.stderr)
-        fixes = generate_fixes(findings, scan_result.get("context"), args.model)
+        fixes = generate_fixes(findings, scan_result.context, args.model)
         print(f"  {len(fixes)} fix(es) generated", file=sys.stderr)
         fixed_count = apply_and_push_fixes(fixes, scan_result, source_files, args.severity)
 
     set_output("fixed_count", str(fixed_count))
 
-    # 6. Exit code
-    if args.fail_on_findings == "true" and findings_count > 0:
+    # 6. Exit code — severity-based merge block
+    fail_sev = args.fail_severity
+    if fail_sev != "none":
+        sev_order = {"high": 1, "medium": 2, "low": 3}
+        threshold = sev_order.get(fail_sev, 0)
+        blocking = [f for f in findings
+                    if sev_order.get(f.get("severity", "low").lower(), 3) <= threshold]
+        if blocking:
+            print(f"  {len(blocking)} finding(s) at {fail_sev}+ severity -> exit 1",
+                  file=sys.stderr)
+            sys.exit(1)
+    elif args.fail_on_findings == "true" and findings_count > 0:
         sys.exit(1)
 
 
