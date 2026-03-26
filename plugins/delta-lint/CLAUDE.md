@@ -34,7 +34,8 @@ Claude Code にインストール後は `~/.claude/plugins/.../delta-lint/.../sc
 
 ### LLM 呼び出し
 - `claude -p` (CLI) を使え。Anthropic API 直叩き禁止（コスト理由）
-- `detector.py` の `_cli_available()` パターンを参照: CLI → API フォールバック
+- **全 LLM 呼び出しは `llm.py` の `call_llm()` を経由すること**。各モジュールで直接 `subprocess` や SDK を呼ばない
+- バックエンド自動選択: CLI → Anthropic SDK → HTTP の3層フォールバック
 
 ## モジュール依存関係
 
@@ -43,22 +44,25 @@ Claude Code にインストール後は `~/.claude/plugins/.../delta-lint/.../sc
 ```
 cli.py              ─── メイン CLI エントリポイント。argparse + view/suppress/config コマンド
 ├── cli_utils.py        ─── 共通ユーティリティ。環境チェック、config/profile 読込、ベースライン
+├── llm.py              ─── LLM バックエンド抽象化（call_llm: CLI→SDK→HTTP 3層フォールバック）
 ├── cmd_init.py         ─── init コマンド。セットアップのみ（スキャンしない）
 ├── cmd_scan.py         ─── scan コマンド群。cmd_scan, cmd_scan_deep, cmd_scan_full, cmd_watch
-├── detector.py         ─── LLM スキャン（通常）
+├── scanner.py          ─── コア検出パイプライン（context→detect→verify→filter）。cmd_scan/CI 共通
+├── output_formats.py   ─── CI 出力フォーマッター（JSON/PR Markdown/annotations）
+├── detector.py         ─── LLM スキャン（通常）→ llm.py 経由
 ├── retrieval.py        ─── ファイル取得 + import 依存解析
 ├── findings.py         ─── JSONL 管理 + ダッシュボード生成
 │   ├── scoring.py          ─── スコアリング重み（ROI, debt_score）
 │   └── info_theory.py      ─── 情報理論スコアリング（surprise, Chao1）
 ├── surface_extractor.py ─── Deep scan Phase 0（正規表現抽出）
 ├── contract_graph.py    ─── 契約グラフ検出（WordPress 等フック系向け、レガシー）
-├── deep_verifier.py     ─── Deep scan Phase 2（LLM 検証、contract_graph 用）
+├── deep_verifier.py     ─── Deep scan Phase 2（LLM 検証）→ llm.py 経由
 │   ※ --depth deep は通常スキャンと同じ LLM パスで max_hops=3 の依存解決を行う
 ├── git_enrichment.py    ─── Git churn/fan_out 計算（スキャン時に finding へ埋め込み）
 ├── output.py            ─── 表示フォーマット
-├── verifier.py          ─── LLM 検証（通常スキャン用、CLI呼び出し）
+├── verifier.py          ─── LLM 検証（通常スキャン用）→ llm.py 経由
 ├── suppress.py          ─── 抑制管理
-├── fixgen.py            ─── Autofix 生成
+├── fixgen.py            ─── Autofix 生成 → llm.py 経由
 ├── debt_loop.py         ─── 自動負債解消ループ（finding → branch → fix → PR）
 └── stress_test.py       ─── ストレステスト + 地雷マップ（scan/init とは独立）
 ```

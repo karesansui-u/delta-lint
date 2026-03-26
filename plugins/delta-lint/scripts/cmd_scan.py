@@ -6,8 +6,7 @@ from datetime import date
 from pathlib import Path
 
 from retrieval import get_changed_files, filter_source_files, build_context
-from detector import detect
-from output import filter_findings, print_results, save_log
+from output import print_results, save_log
 from suppress import (
     SuppressEntry,
     compute_finding_hash,
@@ -24,7 +23,6 @@ from cli_utils import (
     _open_dashboard,
     _auto_discover_docs,
     _load_config,
-    _apply_category_severity_boost,
     _build_baseline_hashes,
     _save_baseline_snapshot,
     _filter_new_findings,
@@ -179,7 +177,6 @@ def cmd_watch(args):
     import hashlib
 
     repo_path = str(Path(args.repo).resolve())
-    repo_name = Path(repo_path).name
     interval = getattr(args, 'watch_interval', 3.0)
 
     def _get_file_snapshot():
@@ -242,87 +239,53 @@ def cmd_watch(args):
             print(f"{'─' * 60}", file=sys.stderr)
 
             try:
-                # Build context
-                _depth = getattr(args, '_depth', 'default')
-                _scope = getattr(args, '_scope', 'diff')
-                _hops = 3 if (_depth == 'deep' or _scope == 'pr') else 1
-                context = build_context(repo_path, source_files, retrieval_config=getattr(args, '_retrieval_config', None), doc_files=getattr(args, '_doc_files', None), max_hops=_hops)
-                if not context.target_files:
+                from scanner import scan as run_scan
+                scan_result = run_scan(
+                    repo_path, source_files,
+                    model=args.model,
+                    backend=args.backend,
+                    lang=args.lang,
+                    severity=args.severity,
+                    scope=getattr(args, '_scope', 'diff'),
+                    depth=getattr(args, '_depth', 'default'),
+                    lens=getattr(args, '_lens', 'default'),
+                    diff_target=args.diff_target,
+                    semantic=args.semantic,
+                    no_verify=getattr(args, 'no_verify', False),
+                    no_cache=getattr(args, 'no_cache', False),
+                    verbose=args.verbose,
+                    retrieval_config=getattr(args, '_retrieval_config', None),
+                    doc_files=getattr(args, '_doc_files', None),
+                )
+
+                if not scan_result.context or not scan_result.context.target_files:
                     print(f"  ⚠ No readable source files. Skipping.", file=sys.stderr)
                     time.sleep(interval)
                     continue
 
-                # Semantic expansion
-                if args.semantic:
-                    from semantic import expand_context_semantic
-                    context = expand_context_semantic(
-                        repo_path, source_files, context,
-                        diff_target=args.diff_target,
-                        verbose=args.verbose,
-                    )
-
-                # Load constraints & policy
-                from detector import load_constraints, load_policy
-                target_paths = [f.path for f in context.target_files]
-                constraints = load_constraints(repo_path, target_paths)
-                policy = load_policy(repo_path)
-                architecture = policy.get("architecture") if policy else None
-
-                # Diff context
-                from retrieval import get_diff_content
-                diff_text = get_diff_content(repo_path, args.diff_target)
-
-                # Detect
-                findings = detect(
-                    context, repo_name=repo_name, model=args.model,
-                    backend=args.backend, lang=args.lang,
-                    constraints=constraints or None,
-                    architecture=architecture,
-                    diff_text=diff_text,
-                )
-
-                # Verify (Phase 2)
-                if not getattr(args, 'no_verify', False) and findings:
-                    from verifier import verify_findings as verify
-                    findings, _, _ = verify(
-                        findings, context,
-                        model=args.model, backend=args.backend,
-                        verbose=args.verbose,
-                    )
-
-                # Filter
-                suppressions = load_suppressions(repo_path)
-                result = filter_findings(
-                    findings, min_severity=args.severity,
-                    suppressions=suppressions, repo_path=repo_path,
-                )
-
-                # Policy filter
-                if policy and (policy.get("accepted") or policy.get("severity_overrides")):
-                    from findings import apply_policy
-                    result.shown = apply_policy(result.shown, policy)
-
                 # Output
-                if result.shown:
-                    print(f"\n  ⚡ {len(result.shown)} finding(s) detected:\n",
+                if scan_result.shown:
+                    print(f"\n  ⚡ {len(scan_result.shown)} finding(s) detected:\n",
                           file=sys.stderr)
                     print_results(
-                        result.shown,
-                        filtered_count=len(result.filtered),
-                        suppressed_count=len(result.suppressed),
-                        expired_count=len(result.expired),
+                        scan_result.shown,
+                        filtered_count=len(scan_result.filtered),
+                        suppressed_count=len(scan_result.suppressed),
+                        expired_count=len(scan_result.expired),
                         output_format=args.output_format,
                     )
                 else:
+                    raw_total = scan_result.raw_count
                     print(f"\n  ✅ No issues found "
-                          f"({len(findings)} raw → 0 after filter)\n",
+                          f"({raw_total} raw → 0 after filter)\n",
                           file=sys.stderr)
 
                 # Auto-learn sibling relationships
-                if not getattr(args, 'no_learn', False) and findings:
+                all_findings = scan_result.shown + scan_result.filtered
+                if not getattr(args, 'no_learn', False) and all_findings:
                     try:
                         from sibling import update_sibling_map_from_findings
-                        new_sibs = update_sibling_map_from_findings(findings, repo_path)
+                        new_sibs = update_sibling_map_from_findings(all_findings, repo_path)
                         if new_sibs and args.verbose:
                             print(f"  Sibling map: +{new_sibs} new",
                                   file=sys.stderr)
@@ -983,39 +946,12 @@ def cmd_scan(args):
             for d in args._doc_files:
                 print(f"  {d}", file=sys.stderr)
 
-    # Step 2: Build context
-    print(f"Building module context...", file=sys.stderr)
-
-    _depth = getattr(args, '_depth', 'default')
-    _scope = getattr(args, '_scope', 'diff')
-    _hops = 3 if (_depth == 'deep' or _scope == 'pr') else 1
-    context = build_context(repo_path, source_files, retrieval_config=getattr(args, '_retrieval_config', None), doc_files=getattr(args, '_doc_files', None), max_hops=_hops)
-
-    # Always show context summary (important progress info)
-    print(f"  Target files: {len(context.target_files)}", file=sys.stderr)
-    print(f"  Dependency files: {len(context.dep_files)}", file=sys.stderr)
-    if context.doc_files:
-        print(f"  Document files: {len(context.doc_files)}", file=sys.stderr)
-    print(f"  Total context: {context.total_chars} chars", file=sys.stderr)
-    # Warnings always shown (important)
-    for w in context.warnings:
-        print(f"  WARNING: {w}", file=sys.stderr)
-
-    if not context.target_files:
-        print("No readable source files in context. Nothing to scan.", file=sys.stderr)
-        sys.exit(0)
-
-    # Step 2.5: Semantic expansion (--semantic)
-    if args.semantic:
-        from semantic import expand_context_semantic
-        context = expand_context_semantic(
-            repo_path, source_files, context,
-            diff_target=args.diff_target,
-            verbose=args.verbose,
-        )
-
-    # Step 3: Dry run - show context and exit
+    # Step 2: Dry run - build context only and exit
     if args.dry_run:
+        _depth = getattr(args, '_depth', 'default')
+        _scope = getattr(args, '_scope', 'diff')
+        _hops = 3 if (_depth == 'deep' or _scope == 'pr') else 1
+        context = build_context(repo_path, source_files, retrieval_config=getattr(args, '_retrieval_config', None), doc_files=getattr(args, '_doc_files', None), max_hops=_hops)
         print("=== DRY RUN: Context that would be sent to LLM ===\n", file=sys.stderr)
         print(f"Target files ({len(context.target_files)}):", file=sys.stderr)
         for f in context.target_files:
@@ -1030,11 +966,15 @@ def cmd_scan(args):
                 print(f"  {w}", file=sys.stderr)
         sys.exit(0)
 
-    # Step 3.5: Load known constraints, team policy, and config
+    # Step 3: Load config, constraints, policy (+ profile merge)
     from detector import load_constraints, load_policy
     config = _load_config(repo_path)
-    target_paths = [f.path for f in context.target_files]
-    constraints = load_constraints(repo_path, target_paths)
+    _depth = getattr(args, '_depth', 'default')
+    _scope = getattr(args, '_scope', 'diff')
+
+    # Use source_files as target_paths for constraint loading
+    # (scanner.scan() will build the full context internally)
+    constraints = load_constraints(repo_path, source_files)
     policy = load_policy(repo_path)
 
     # Merge profile policy into constraints.yml policy (profile wins on conflict)
@@ -1050,8 +990,6 @@ def cmd_scan(args):
         if "disabled_patterns" in profile_policy:
             config["disabled_patterns"] = profile_policy["disabled_patterns"]
         # detect_prompt: custom detection prompt path or inline
-        # - File path (relative to repo): loaded and used as system prompt
-        # - Inline string: used directly as system prompt
         if "detect_prompt" in profile_policy:
             policy["detect_prompt"] = profile_policy["detect_prompt"]
         # accepted: accepted rules override (per-pattern or per-file exceptions)
@@ -1086,6 +1024,7 @@ def cmd_scan(args):
     if constraints and args.verbose:
         total_c = sum(len(c.get("implicit_constraints", [])) for c in constraints)
         print(f"  Loaded {total_c} constraint(s) from {len(constraints)} module(s)", file=sys.stderr)
+
     # Apply exclude_paths from policy (filter out 3rd-party / vendor code)
     exclude_paths = policy.get("exclude_paths", []) if policy else []
     if exclude_paths:
@@ -1096,11 +1035,8 @@ def cmd_scan(args):
             if not any(fnmatch.fnmatch(f, pat) for pat in exclude_paths)
         ]
         excluded_count = before_count - len(source_files)
-        if excluded_count > 0:
-            # Rebuild context without excluded files
-            context = build_context(repo_path, source_files, retrieval_config=getattr(args, '_retrieval_config', None), doc_files=getattr(args, '_doc_files', None), max_hops=_hops)
-            if args.verbose:
-                print(f"  Excluded {excluded_count} file(s) by policy exclude_paths", file=sys.stderr)
+        if excluded_count > 0 and args.verbose:
+            print(f"  Excluded {excluded_count} file(s) by policy exclude_paths", file=sys.stderr)
 
     if policy and args.verbose:
         parts = []
@@ -1124,7 +1060,7 @@ def cmd_scan(args):
     if config.get("disabled_patterns") and args.verbose:
         print(f"  Disabled patterns: {', '.join(config['disabled_patterns'])}", file=sys.stderr)
 
-    # Step 3.7: Get git diff for change-aware detection
+    # Step 3.5: Get git diff for change-aware detection
     from retrieval import get_diff_content
     diff_text = ""
     if scope == "pr":
@@ -1135,121 +1071,55 @@ def cmd_scan(args):
         if args.verbose and diff_text:
             print(f"  Diff context: {len(diff_text)} chars", file=sys.stderr)
 
-    # Step 3.9: Check cache (skip LLM if same context was scanned before)
-    from cache import compute_context_hash, get_cached_findings, save_cached_findings
-    context_hash = compute_context_hash(context.target_files, context.dep_files, context.doc_files)
-    cache_hit = False
+    # Step 4: Run core detection pipeline via scanner.scan()
+    print(f"Building module context...", file=sys.stderr)
+    from scanner import scan as run_scan
+    scan_result = run_scan(
+        repo_path, source_files,
+        model=args.model,
+        backend=args.backend,
+        lang=args.lang,
+        severity=args.severity,
+        scope=scope,
+        depth=_depth,
+        lens=getattr(args, '_lens', 'default'),
+        diff_target=args.diff_target,
+        semantic=args.semantic,
+        no_verify=getattr(args, 'no_verify', False),
+        no_cache=getattr(args, 'no_cache', False),
+        verbose=args.verbose,
+        constraints=constraints,
+        policy=policy,
+        config=config,
+        retrieval_config=getattr(args, '_retrieval_config', None),
+        doc_files=getattr(args, '_doc_files', None),
+        diff_text=diff_text,
+    )
 
-    if not getattr(args, 'no_cache', False):
-        cached = get_cached_findings(repo_path, context_hash)
-        if cached is not None:
-            findings = cached
-            cache_hit = True
-            # Always show cache hit (important to know why it's fast)
-            print(f"  Cache hit ({context_hash[:8]}...) — {len(findings)} finding(s)",
-                  file=sys.stderr)
+    # Unpack scan result for downstream steps
+    context = scan_result.context
+    findings = scan_result.shown + scan_result.filtered + scan_result.suppressed
+    verification_meta = scan_result.verification_meta
+    rejected_findings = scan_result.rejected_findings
 
-    # Step 4: Run detection (skip if cache hit)
-    if not cache_hit:
-        print(f"Running detection with {args.model}...", file=sys.stderr)
+    # Build result object compatible with existing downstream code
+    from output import FilterResult
+    result = FilterResult(
+        shown=scan_result.shown,
+        filtered=scan_result.filtered,
+        suppressed=scan_result.suppressed,
+        expired=scan_result.expired,
+        expired_entries=scan_result.expired_entries,
+    )
 
-        architecture = policy.get("architecture") if policy else None
-        project_rules = policy.get("project_rules") if policy else None
-        prompt_append = policy.get("prompt_append", "") if policy else ""
-        disabled_patterns = config.get("disabled_patterns") if config else None
-
-        # detect_prompt: profile can override the entire detection prompt
-        # Value can be a file path (relative to repo) or inline prompt text
-        detect_prompt_override = ""
-        raw_detect_prompt = policy.get("detect_prompt", "") if policy else ""
-        if raw_detect_prompt:
-            # If it looks like a file path, try to load it
-            prompt_file = Path(repo_path) / raw_detect_prompt
-            if prompt_file.exists() and prompt_file.is_file():
-                detect_prompt_override = prompt_file.read_text(encoding="utf-8")
-                if args.verbose:
-                    print(f"  Custom detect prompt: {raw_detect_prompt}", file=sys.stderr)
-            else:
-                # Treat as inline prompt text
-                detect_prompt_override = raw_detect_prompt
-                if args.verbose:
-                    print(f"  Custom detect prompt: inline ({len(raw_detect_prompt)} chars)", file=sys.stderr)
-
-        findings = detect(context, repo_name=repo_name, model=args.model,
-                           backend=args.backend, lang=args.lang,
-                           constraints=constraints or None,
-                           architecture=architecture,
-                           diff_text=diff_text,
-                           project_rules=project_rules,
-                           repo_path=repo_path,
-                           prompt_append=prompt_append,
-                           disabled_patterns=disabled_patterns,
-                           detect_prompt=detect_prompt_override,
-                           lens=getattr(args, '_lens', 'default'))
-
-        print(f"  Raw findings: {len(findings)}", file=sys.stderr)
-
-    # Step 4.2: Verify findings (Phase 2 — reject false positives)
-    verification_meta = None
-    rejected_findings = []
-    if not getattr(args, 'no_verify', False) and findings:
-        print(f"Verifying {len(findings)} finding(s)...", file=sys.stderr)
-        from verifier import verify_findings as verify
-        findings, rejected_findings, verification_meta = verify(
-            findings, context,
-            model=args.model, backend=args.backend,
-            verbose=args.verbose,
-        )
-        # Always show verification results (important progress info)
-        if verification_meta:
-            print(f"  Verified: {verification_meta['confirmed']} confirmed, "
-                  f"{verification_meta['rejected']} rejected", file=sys.stderr)
-
-    # Step 4.3: Save to cache (after verification, so cache includes verified results)
-    if not cache_hit and not getattr(args, 'no_cache', False):
-        save_cached_findings(repo_path, context_hash, findings, model=args.model)
-        if args.verbose:
-            print(f"  Cached results ({context_hash})", file=sys.stderr)
-
-    # Step 4.5: Load suppressions
-    suppressions = load_suppressions(repo_path)
-    if args.verbose and suppressions:
-        print(f"  Loaded {len(suppressions)} suppress entry(ies)", file=sys.stderr)
-
-    # Step 5: Filter and output (with suppress support)
-    result = filter_findings(findings, min_severity=args.severity,
-                             suppressions=suppressions, repo_path=repo_path)
-
-    # Step 5.1: Apply team policy (accepted filter + severity overrides)
-    policy_filtered = 0
-    if policy and (policy.get("accepted") or policy.get("severity_overrides")):
-        from findings import apply_policy
-        before = len(result.shown)
-        result.shown = apply_policy(result.shown, policy)
-        policy_filtered = before - len(result.shown)
-
-    # Step 5.15: Apply category severity boost
-    config = _load_config(repo_path)
-    categories = config.get("categories", {})
-    if categories:
-        _apply_category_severity_boost(result.shown, categories, verbose=args.verbose)
-        # Re-filter: boosted findings may now fall below min_severity
-        from output import SEVERITY_ORDER
-        threshold = SEVERITY_ORDER.get(args.severity, 0)
-        before_cat = len(result.shown)
-        result.shown = [f for f in result.shown
-                        if SEVERITY_ORDER.get(f.get("severity", "low").lower(), 1) <= threshold]
-        cat_filtered = before_cat - len(result.shown)
-        if cat_filtered and args.verbose:
-            print(f"  Category filtered: {cat_filtered}", file=sys.stderr)
-
-    # Step 5.2: diff-only filter (keep only findings touching changed files)
+    # Step 5: diff-only filter (keep only findings touching changed files)
     diff_only_filtered = 0
     if getattr(args, 'diff_only', False) and not args.files:
         from output import filter_diff_only
         before = len(result.shown)
         result.shown = filter_diff_only(result.shown, source_files)
         diff_only_filtered = before - len(result.shown)
+    policy_filtered = 0  # already applied inside scanner.scan()
 
     # Always show basic filtering results (important progress info)
     print(f"  Shown (>= {args.severity}): {len(result.shown)}", file=sys.stderr)
