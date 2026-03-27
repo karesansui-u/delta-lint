@@ -1,0 +1,50 @@
+[
+  {
+    "id": "①-high",
+    "pattern": "①",
+    "pattern_name": "Asymmetric Defaults",
+    "severity": "high",
+    "acc_a": 0.6667,
+    "acc_b": 1.0,
+    "correct_a": 20,
+    "correct_b": 30,
+    "total_trials": 30,
+    "i_nats": 0.4055,
+    "survival_factor": 0.6667,
+    "model": "claude-haiku-4-5-20251001",
+    "trials_per_question": 10,
+    "n_questions": 3
+  },
+  {
+    "id": "①-medium",
+    "pattern": "①",
+    "pattern_name": "Asymmetric Defaults",
+    "severity": "medium",
+    "acc_a": 0.6667,
+    "acc_b": 1.0,
+    "correct_a": 20,
+    "correct_b": 30,
+    "total_trials": 30,
+    "i_nats": 0.4055,
+    "survival_factor": 0.6667,
+    "model": "claude-haiku-4-5-20251001",
+    "trials_per_question": 10,
+    "n_questions": 3
+  },
+  {
+    "id": "①-low",
+    "pattern": "①",
+    "pattern_name": "Asymmetric Defaults",
+    "severity": "low",
+    "acc_a": 0.6667,
+    "acc_b": 1.0,
+    "correct_a": 20,
+    "correct_b": 30,
+    "total_trials": 30,
+    "i_nats": 0.4055,
+    "survival_factor": 0.6667,
+    "model": "claude-haiku-4-5-20251001",
+    "trials_per_question": 10,
+    "n_questions": 3
+  }
+]

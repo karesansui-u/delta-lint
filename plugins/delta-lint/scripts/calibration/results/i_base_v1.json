@@ -1,0 +1,29 @@
+{
+  "version": "v1",
+  "protocol": "partial-context",
+  "date": "2026-03-27",
+  "description": "I_base table from Phase 0 calibration experiment",
+  "cells": {
+    "①-high": {
+      "pattern": "①",
+      "pattern_name": "Asymmetric Defaults",
+      "severity": "high",
+      "i_nats": 0.4055,
+      "survival_factor": 0.6667,
+      "acc_a": 0.6667,
+      "acc_b": 1.0,
+      "model": "claude-haiku-4-5-20251001",
+      "trials": 3
+    }
+  },
+  "summary": {
+    "total_cells": 1,
+    "mean_i_nats": 0.4055,
+    "by_severity": {
+      "high": 0.4055
+    },
+    "by_pattern": {
+      "①": 0.4055
+    }
+  }
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "id": "①-high",
+    "pattern": "①",
+    "pattern_name": "Asymmetric Defaults",
+    "severity": "high",
+    "acc_a": 0.6667,
+    "acc_b": 1.0,
+    "correct_a": 6,
+    "correct_b": 9,
+    "total_trials": 9,
+    "i_nats": 0.4055,
+    "survival_factor": 0.6667,
+    "model": "claude-haiku-4-5-20251001",
+    "trials_per_question": 3,
+    "n_questions": 3
+  }
+]
