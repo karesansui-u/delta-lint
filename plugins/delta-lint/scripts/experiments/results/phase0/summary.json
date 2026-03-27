@@ -1,0 +1,26 @@
+{
+  "experiment": "phase0_calibration",
+  "model": "claude-haiku-4-5-20251001",
+  "n_trials": 1,
+  "temperature": 0.7,
+  "n_scenarios": 3,
+  "total_calls": 18,
+  "elapsed_seconds": 119.85988020896912,
+  "results": {
+    "⑩_high": {
+      "acc_a": 1.0,
+      "acc_b": 1.0,
+      "i_nats": -0.0
+    },
+    "⑩_medium": {
+      "acc_a": 1.0,
+      "acc_b": 1.0,
+      "i_nats": -0.0
+    },
+    "⑩_low": {
+      "acc_a": 0.6666666666666666,
+      "acc_b": 1.0,
+      "i_nats": 0.40546510810816444
+    }
+  }
+}

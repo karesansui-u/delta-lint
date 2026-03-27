@@ -1,0 +1,108 @@
+{
+  "experiment": "phase0_calibration",
+  "pattern": "①",
+  "pattern_name": "Asymmetric Defaults",
+  "severity": "high",
+  "scenario_key": "①_high",
+  "description": "Gateway timeout=5s vs report service internal timeout=60s causes orphaned reports",
+  "hidden_file": "services/report_service.py",
+  "protocol": "partial_context",
+  "model": "claude-haiku-4-5-20251001",
+  "temperature": 0.7,
+  "n_trials": 1,
+  "n_questions": 3,
+  "acc_a": 1.0,
+  "acc_b": 1.0,
+  "i_nats": -0.0,
+  "ci_a_95": [
+    0.43849391955098227,
+    1.0
+  ],
+  "ci_b_95": [
+    0.43849391955098227,
+    1.0
+  ],
+  "acc_by_question_a": {
+    "0": 1.0,
+    "1": 1.0,
+    "2": 1.0
+  },
+  "acc_by_question_b": {
+    "0": 1.0,
+    "1": 1.0,
+    "2": 1.0
+  },
+  "response_dist_a": {
+    "0": {
+      "B": 1
+    },
+    "1": {
+      "C": 1
+    },
+    "2": {
+      "B": 1
+    }
+  },
+  "response_dist_b": {
+    "0": {
+      "B": 1
+    },
+    "1": {
+      "C": 1
+    },
+    "2": {
+      "B": 1
+    }
+  },
+  "elapsed_seconds": 37.25113296508789,
+  "trials": [
+    {
+      "condition": "A",
+      "question_idx": 0,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 1,
+      "trial": 0,
+      "raw_response": "C",
+      "extracted": "C",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 2,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 0,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 1,
+      "trial": 0,
+      "raw_response": "C",
+      "extracted": "C",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 2,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    }
+  ]
+}

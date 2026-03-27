@@ -1,0 +1,108 @@
+{
+  "experiment": "phase0_calibration",
+  "pattern": "④",
+  "pattern_name": "Guard Non-Propagation",
+  "severity": "medium",
+  "scenario_key": "④_medium",
+  "description": "Permission check exists only in API layer; service layer trusts caller blindly",
+  "hidden_file": "services/order_service.py",
+  "protocol": "partial_context",
+  "model": "claude-haiku-4-5-20251001",
+  "temperature": 0.7,
+  "n_trials": 1,
+  "n_questions": 3,
+  "acc_a": 0.6666666666666666,
+  "acc_b": 0.3333333333333333,
+  "i_nats": -0.6931471805599453,
+  "ci_a_95": [
+    0.2076549551264879,
+    0.9385096847238394
+  ],
+  "ci_b_95": [
+    0.0614903152761605,
+    0.7923450448735121
+  ],
+  "acc_by_question_a": {
+    "0": 0.0,
+    "1": 1.0,
+    "2": 1.0
+  },
+  "acc_by_question_b": {
+    "0": 0.0,
+    "1": 1.0,
+    "2": 0.0
+  },
+  "response_dist_a": {
+    "0": {
+      "C": 1
+    },
+    "1": {
+      "B": 1
+    },
+    "2": {
+      "B": 1
+    }
+  },
+  "response_dist_b": {
+    "0": {
+      "C": 1
+    },
+    "1": {
+      "B": 1
+    },
+    "2": {
+      "C": 1
+    }
+  },
+  "elapsed_seconds": 31.548110008239746,
+  "trials": [
+    {
+      "condition": "A",
+      "question_idx": 0,
+      "trial": 0,
+      "raw_response": "C",
+      "extracted": "C",
+      "correct": false
+    },
+    {
+      "condition": "A",
+      "question_idx": 1,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 2,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 0,
+      "trial": 0,
+      "raw_response": "C",
+      "extracted": "C",
+      "correct": false
+    },
+    {
+      "condition": "B",
+      "question_idx": 1,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 2,
+      "trial": 0,
+      "raw_response": "C",
+      "extracted": "C",
+      "correct": false
+    }
+  ]
+}

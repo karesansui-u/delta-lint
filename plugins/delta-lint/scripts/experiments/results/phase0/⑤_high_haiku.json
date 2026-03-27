@@ -1,0 +1,108 @@
+{
+  "experiment": "phase0_calibration",
+  "pattern": "⑤",
+  "pattern_name": "Paired-Setting Override",
+  "severity": "high",
+  "scenario_key": "⑤_high",
+  "description": "Cache TTL=3600s but invalidation only marks stale, doesn't delete; up to 55min stale data",
+  "hidden_file": "services/cache_manager.py",
+  "protocol": "partial_context",
+  "model": "claude-haiku-4-5-20251001",
+  "temperature": 0.7,
+  "n_trials": 1,
+  "n_questions": 3,
+  "acc_a": 0.6666666666666666,
+  "acc_b": 1.0,
+  "i_nats": 0.40546510810816444,
+  "ci_a_95": [
+    0.2076549551264879,
+    0.9385096847238394
+  ],
+  "ci_b_95": [
+    0.43849391955098227,
+    1.0
+  ],
+  "acc_by_question_a": {
+    "0": 1.0,
+    "1": 1.0,
+    "2": 0.0
+  },
+  "acc_by_question_b": {
+    "0": 1.0,
+    "1": 1.0,
+    "2": 1.0
+  },
+  "response_dist_a": {
+    "0": {
+      "B": 1
+    },
+    "1": {
+      "B": 1
+    },
+    "2": {
+      "C": 1
+    }
+  },
+  "response_dist_b": {
+    "0": {
+      "B": 1
+    },
+    "1": {
+      "B": 1
+    },
+    "2": {
+      "B": 1
+    }
+  },
+  "elapsed_seconds": 31.00114917755127,
+  "trials": [
+    {
+      "condition": "A",
+      "question_idx": 0,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 1,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "A",
+      "question_idx": 2,
+      "trial": 0,
+      "raw_response": "C",
+      "extracted": "C",
+      "correct": false
+    },
+    {
+      "condition": "B",
+      "question_idx": 0,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 1,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "condition": "B",
+      "question_idx": 2,
+      "trial": 0,
+      "raw_response": "B",
+      "extracted": "B",
+      "correct": true
+    }
+  ]
+}
