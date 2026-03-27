@@ -6,3 +6,7 @@ __pycache__/
 # Local / ephemeral under plugin scripts
 plugins/delta-lint/scripts/aider/
 plugins/delta-lint/scripts/.delta-lint/
+
+# GitHub App secrets
+*.pem
+plugins/delta-lint/app/.env

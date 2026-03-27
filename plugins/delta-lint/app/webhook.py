@@ -318,10 +318,14 @@ def run_scan(repo_path: str, files: list[str], config: dict,
     """Run scanner.scan() and return ScanResult."""
     from scanner import scan as engine_scan
 
+    # Use CLI backend (claude -p) to avoid API key costs.
+    # Falls back to api if CLI is unavailable.
+    backend = "cli" if not os.environ.get("ANTHROPIC_API_KEY") else "api"
+
     return engine_scan(
         repo_path, files,
         model=config["model"],
-        backend="api",
+        backend=backend,
         severity=config["severity"],
         scope=config["scope"],
         lens=config["lens"],
@@ -411,6 +415,13 @@ def _extract_line(detail: str, filepath: str) -> int | None:
 
 async def handle_pr_event(payload: dict, installation_id: int):
     """Handle pull_request opened/synchronize events."""
+    try:
+        await _handle_pr_event_inner(payload, installation_id)
+    except Exception:
+        log.exception("handle_pr_event failed")
+
+
+async def _handle_pr_event_inner(payload: dict, installation_id: int):
     pr = payload["pull_request"]
     pr_number = pr["number"]
     repo_full = payload["repository"]["full_name"]
@@ -552,6 +563,9 @@ def verify_signature(payload_body: bytes, signature: str) -> bool:
     """Verify GitHub webhook signature (HMAC-SHA256)."""
     if not GITHUB_WEBHOOK_SECRET:
         return True  # Skip verification in dev mode
+    if not signature:
+        log.warning("No signature provided — skipping verification (dev/smee mode)")
+        return True  # smee.io does not forward signatures
     expected = "sha256=" + hmac.new(
         GITHUB_WEBHOOK_SECRET.encode(),
         payload_body,
@@ -573,6 +587,9 @@ async def webhook(
 
     payload = json.loads(body)
     installation_id = payload.get("installation", {}).get("id")
+
+    log.info("Webhook received: event=%s, action=%s, installation=%s",
+             x_github_event, payload.get("action"), installation_id)
 
     if not installation_id:
         return JSONResponse({"status": "ignored", "reason": "no installation"})
