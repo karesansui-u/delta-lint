@@ -67,13 +67,19 @@ I_BASE: dict[tuple[str, str], float] = {
 # Fallback for patterns not in the calibration table (⑦–⑩ etc.)
 _I_BASE_FALLBACK = 0.4055  # median of positive cells
 
+# Patterns known to originate from stress tests (not normal scans)
+_STRESS_TEST_PATTERNS = frozenset({"⑩"})
 
-def i_base_lookup(pattern: str, severity: str) -> float:
+
+def i_base_lookup(pattern: str, severity: str) -> tuple[float, bool]:
     """Look up calibrated I value for a (pattern, severity) cell.
 
-    Returns _I_BASE_FALLBACK for uncalibrated patterns.
+    Returns (i_value, is_calibrated).
+    Uses _I_BASE_FALLBACK for uncalibrated patterns.
     """
-    return I_BASE.get((pattern, severity), _I_BASE_FALLBACK)
+    if (pattern, severity) in I_BASE:
+        return I_BASE[(pattern, severity)], True
+    return _I_BASE_FALLBACK, False
 
 
 def _file_key(f: dict) -> str:
@@ -115,27 +121,41 @@ def compute_delta_repo(findings: list[dict]) -> dict:
     δ_repo = Σ I_base(pattern, severity)  for each active finding
     health = e^{-δ_repo}
 
+    Stress-test-only patterns (⑩ etc.) are excluded from δ_repo.
+    Uncalibrated patterns use fallback and are flagged as calibrated=False.
+
     Returns:
-        delta_repo: total information loss in nats
+        delta_repo: total information loss in nats (all active, excl. stress-test)
+        delta_repo_calibrated: δ from calibrated cells only (for Phase 1 validation)
         health_factor: e^{-δ_repo} ∈ (0, 1]
         health_emoji: barometer emoji
         health_label: "excellent" | "good" | "moderate" | "poor" | "critical"
         active_count: number of active findings contributing to δ
-        breakdown: per-pattern subtotals
+        breakdown: per-pattern subtotals with calibrated flag
     """
-    active = [f for f in findings if _is_open(f)]
+    active = [
+        f for f in findings
+        if _is_open(f)
+        and (f.get("pattern") or "").strip() not in _STRESS_TEST_PATTERNS
+    ]
 
     breakdown: dict[str, dict] = {}
     delta_total = 0.0
+    delta_calibrated = 0.0
 
     for f in active:
         pattern = (f.get("pattern") or "").strip()
         severity = (f.get("severity") or "medium").lower()
-        i_val = i_base_lookup(pattern, severity)
+        i_val, calibrated = i_base_lookup(pattern, severity)
         delta_total += i_val
+        if calibrated:
+            delta_calibrated += i_val
 
         if pattern not in breakdown:
-            breakdown[pattern] = {"count": 0, "delta": 0.0, "i_values": []}
+            breakdown[pattern] = {
+                "count": 0, "delta": 0.0, "i_values": [],
+                "calibrated": calibrated,
+            }
         breakdown[pattern]["count"] += 1
         breakdown[pattern]["delta"] = round(breakdown[pattern]["delta"] + i_val, 4)
         breakdown[pattern]["i_values"].append(i_val)
@@ -150,6 +170,7 @@ def compute_delta_repo(findings: list[dict]) -> dict:
 
     return {
         "delta_repo": round(delta_total, 4),
+        "delta_repo_calibrated": round(delta_calibrated, 4),
         "health_factor": round(health, 4),
         "health_emoji": emoji,
         "health_label": label,
