@@ -85,15 +85,16 @@ delta-fix --ids dl-xxxxxxxx // 特定の dl-ID を修正
 ## なぜこれがこんなに機能するのか(背景技術)
 
 この技術は、下記の論文を応用したカタチです<br>
-[Structural Collapse as Information Loss: The Exponential Decay Mechanism under Accumulating Constraints](https://zenodo.org/records/19053901)（[PDF](assets/Information_loss.pdf)） <br>
+[Structural Collapse as Information Loss: The Exponential Decay Mechanism under Accumulating Constraints](https://zenodo.org/records/19254667)（[PDF](assets/Information_loss.pdf)） <br>
 ※東大松尾研OBの方に査読してもらいました<br>
 
-特定の条件を満たす構造は、構造矛盾によって急激に崩壊するという理論です。<br>
-ソフトウェア本体を構造物と捉えて、矛盾があったときにバグとして炙り出てくるという理論応用になります。
+構造矛盾（δ）が蓄積するとシステムの生存ポテンシャルは **S = N_eff · (μ/μ_c) · e^{-δ}** に従って**指数関数的に**崩壊する（足し算ではなく掛け算）という理論です。
 
-LLM 11モデル・5ベンダーでの実験と、SAT問題での数学的検証により、構造矛盾が蓄積するとシステムの健全性は**指数関数的に**崩壊する（足し算ではなく掛け算）ことを確認しています。
+- **LLM 11モデル・5ベンダー（4B〜70B+パラメータ）** での制御実験で、構造矛盾と文脈マージンの乗法的相互作用を確認
+- **SAT問題での数学的検証** により、e^{-δ} が解の個数の第一モーメントと数学的に一致することを証明
+- **Lean 4 による形式検証**（16モジュール・160命題、sorry = 0）で数学的性質を機械証明
 
-DeltaLint はこの理論を使って、コードの中から「設計図の食い違い」を自動検出します。だから普通のリンターやテストでは見つからないバグが見つかります。
+ソフトウェアを構造物と捉え、コード内の矛盾（非対称デフォルト、ガード欠落など）を情報損失 δ として測定・検出するのが DeltaLint の技術基盤です。普通のリンターやテストでは見つからない「スコープ外」のバグが見つかります。
 
 ## License
 
