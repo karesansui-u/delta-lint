@@ -1,29 +1,244 @@
 {
   "version": "v1",
   "protocol": "partial-context",
-  "date": "2026-03-27",
-  "description": "I_base table from Phase 0 calibration experiment",
+  "date": "2026-03-28",
+  "description": "I_base table from Phase 0 + 0.1 calibration. 8 cells with I>0, 10 surface-detectable (I=0).",
+  "methodology": {
+    "phases": ["Phase 0 (18 cells)", "Phase 0.1 (9 cells: ③⑤⑥ redesigned)"],
+    "model": "claude-haiku-4-5-20251001",
+    "trials_per_question": 10,
+    "n_questions": 3,
+    "total_trials_per_cell": 30
+  },
+  "classification": {
+    "context-dependent": {
+      "description": "I>0: annotation carries information not recoverable from visible code alone",
+      "patterns": ["①", "②", "④", "⑤"]
+    },
+    "surface-detectable": {
+      "description": "I=0: pattern detectable from general knowledge or visible code without cross-module context",
+      "patterns": ["③", "⑥"],
+      "note": "Not a measurement failure — these patterns are genuinely solvable without hidden context. Consider difficulty-gradient protocol in Phase 1."
+    }
+  },
   "cells": {
     "①-high": {
       "pattern": "①",
       "pattern_name": "Asymmetric Defaults",
       "severity": "high",
+      "class": "context-dependent",
       "i_nats": 0.4055,
       "survival_factor": 0.6667,
       "acc_a": 0.6667,
       "acc_b": 1.0,
-      "model": "claude-haiku-4-5-20251001",
-      "trials": 3
+      "source": "phase0"
+    },
+    "①-medium": {
+      "pattern": "①",
+      "pattern_name": "Asymmetric Defaults",
+      "severity": "medium",
+      "class": "context-dependent",
+      "i_nats": 0.4055,
+      "survival_factor": 0.6667,
+      "acc_a": 0.6667,
+      "acc_b": 1.0,
+      "source": "phase0"
+    },
+    "①-low": {
+      "pattern": "①",
+      "pattern_name": "Asymmetric Defaults",
+      "severity": "low",
+      "class": "context-dependent",
+      "i_nats": 0.4055,
+      "survival_factor": 0.6667,
+      "acc_a": 0.6667,
+      "acc_b": 1.0,
+      "source": "phase0"
+    },
+    "②-high": {
+      "pattern": "②",
+      "pattern_name": "Semantic Mismatch",
+      "severity": "high",
+      "class": "context-dependent",
+      "i_nats": 0.4055,
+      "survival_factor": 0.6667,
+      "acc_a": 0.6667,
+      "acc_b": 1.0,
+      "source": "phase0"
+    },
+    "②-medium": {
+      "pattern": "②",
+      "pattern_name": "Semantic Mismatch",
+      "severity": "medium",
+      "class": "context-dependent",
+      "i_nats": 3.4012,
+      "survival_factor": 0.0333,
+      "acc_a": 0.0,
+      "acc_b": 1.0,
+      "source": "phase0"
+    },
+    "②-low": {
+      "pattern": "②",
+      "pattern_name": "Semantic Mismatch",
+      "severity": "low",
+      "class": "context-dependent",
+      "i_nats": 0.4055,
+      "survival_factor": 0.6667,
+      "acc_a": 0.6667,
+      "acc_b": 1.0,
+      "source": "phase0"
+    },
+    "③-high": {
+      "pattern": "③",
+      "pattern_name": "External Spec Divergence",
+      "severity": "high",
+      "class": "surface-detectable",
+      "i_nats": 0.0,
+      "survival_factor": 1.0,
+      "acc_a": 1.0,
+      "acc_b": 1.0,
+      "source": "phase0.1"
+    },
+    "③-medium": {
+      "pattern": "③",
+      "pattern_name": "External Spec Divergence",
+      "severity": "medium",
+      "class": "surface-detectable",
+      "i_nats": 0.0,
+      "survival_factor": 1.0,
+      "acc_a": 1.0,
+      "acc_b": 1.0,
+      "source": "phase0.1"
+    },
+    "③-low": {
+      "pattern": "③",
+      "pattern_name": "External Spec Divergence",
+      "severity": "low",
+      "class": "surface-detectable",
+      "i_nats": 0.0,
+      "survival_factor": 1.0,
+      "acc_a": 1.0,
+      "acc_b": 1.0,
+      "source": "phase0.1"
+    },
+    "④-high": {
+      "pattern": "④",
+      "pattern_name": "Guard Non-Propagation",
+      "severity": "high",
+      "class": "context-dependent",
+      "i_nats": 0.0,
+      "survival_factor": 1.0,
+      "acc_a": 1.0,
+      "acc_b": 1.0,
+      "source": "phase0",
+      "note": "acc_a=acc_b=1.0 at high severity — guard pattern visible without context at this level"
+    },
+    "④-medium": {
+      "pattern": "④",
+      "pattern_name": "Guard Non-Propagation",
+      "severity": "medium",
+      "class": "context-dependent",
+      "i_nats": 0.2657,
+      "survival_factor": 0.7667,
+      "acc_a": 0.7667,
+      "acc_b": 1.0,
+      "source": "phase0"
+    },
+    "④-low": {
+      "pattern": "④",
+      "pattern_name": "Guard Non-Propagation",
+      "severity": "low",
+      "class": "context-dependent",
+      "i_nats": 0.0,
+      "survival_factor": 1.0,
+      "acc_a": 0.5333,
+      "acc_b": 0.0,
+      "source": "phase0",
+      "note": "acc_b=0 — annotation may have confused the model. Measurement artifact."
+    },
+    "⑤-high": {
+      "pattern": "⑤",
+      "pattern_name": "Paired-Setting Override",
+      "severity": "high",
+      "class": "context-dependent",
+      "i_nats": 0.4055,
+      "survival_factor": 0.6667,
+      "acc_a": 0.6667,
+      "acc_b": 1.0,
+      "source": "phase0.1"
+    },
+    "⑤-medium": {
+      "pattern": "⑤",
+      "pattern_name": "Paired-Setting Override",
+      "severity": "medium",
+      "class": "context-dependent",
+      "i_nats": 0.0,
+      "survival_factor": 1.0,
+      "acc_a": 1.0,
+      "acc_b": 1.0,
+      "source": "phase0.1",
+      "note": "acc_a=acc_b=1.0 — Celery timeout scenario solvable from visible code"
+    },
+    "⑤-low": {
+      "pattern": "⑤",
+      "pattern_name": "Paired-Setting Override",
+      "severity": "low",
+      "class": "context-dependent",
+      "i_nats": 0.0,
+      "survival_factor": 1.0,
+      "acc_a": 1.0,
+      "acc_b": 1.0,
+      "source": "phase0.1",
+      "note": "acc_a=acc_b=1.0 — ALB rate limit scenario with TODO hint, too easy"
+    },
+    "⑥-high": {
+      "pattern": "⑥",
+      "pattern_name": "Lifecycle Ordering",
+      "severity": "high",
+      "class": "surface-detectable",
+      "i_nats": 0.0,
+      "survival_factor": 1.0,
+      "acc_a": 1.0,
+      "acc_b": 1.0,
+      "source": "phase0.1"
+    },
+    "⑥-medium": {
+      "pattern": "⑥",
+      "pattern_name": "Lifecycle Ordering",
+      "severity": "medium",
+      "class": "surface-detectable",
+      "i_nats": 0.0,
+      "survival_factor": 1.0,
+      "acc_a": 1.0,
+      "acc_b": 1.0,
+      "source": "phase0.1"
+    },
+    "⑥-low": {
+      "pattern": "⑥",
+      "pattern_name": "Lifecycle Ordering",
+      "severity": "low",
+      "class": "surface-detectable",
+      "i_nats": 0.0,
+      "survival_factor": 1.0,
+      "acc_a": 1.0,
+      "acc_b": 1.0,
+      "source": "phase0.1"
     }
   },
   "summary": {
-    "total_cells": 1,
-    "mean_i_nats": 0.4055,
-    "by_severity": {
-      "high": 0.4055
-    },
+    "total_cells": 18,
+    "context_dependent_cells": 12,
+    "surface_detectable_cells": 6,
+    "cells_with_positive_i": 8,
+    "mean_i_nats_all": 0.2999,
+    "mean_i_nats_positive_only": 0.6749,
     "by_pattern": {
-      "①": 0.4055
+      "①": {"mean_i": 0.4055, "class": "context-dependent", "valid_cells": 3},
+      "②": {"mean_i": 1.4041, "class": "context-dependent", "valid_cells": 3},
+      "③": {"mean_i": 0.0, "class": "surface-detectable", "valid_cells": 0},
+      "④": {"mean_i": 0.0886, "class": "context-dependent", "valid_cells": 1},
+      "⑤": {"mean_i": 0.1352, "class": "context-dependent", "valid_cells": 1},
+      "⑥": {"mean_i": 0.0, "class": "surface-detectable", "valid_cells": 0}
     }
   }
 }

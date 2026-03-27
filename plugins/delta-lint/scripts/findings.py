@@ -910,8 +910,13 @@ def cmd_findings(args) -> None:
         _findings_enrich(base_path, args)
     elif args.findings_command == "verify-top":
         _findings_verify_top(base_path, args)
+    elif args.findings_command == "phase1-export":
+        _findings_phase1_export(args)
     else:
-        print("Usage: delta-lint findings {add|list|update|search|stats|index|dashboard|enrich|verify-top}", file=sys.stderr)
+        print(
+            "Usage: delta-lint findings {add|list|update|search|stats|index|dashboard|enrich|verify-top|phase1-export}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
 
@@ -1038,6 +1043,30 @@ def _findings_stats(base_path: str, args) -> None:
 def _findings_index(base_path: str, args) -> None:
     path = save_index(base_path)
     print(f"Index generated: {path}")
+
+
+def _findings_phase1_export(args) -> None:
+    """Export Phase 1 CSV (δ_repo + Chao1); see docs/phase1-delta-repo-validation.md."""
+    from pathlib import Path as _Path
+
+    from calibration.export_phase1_metrics import (
+        _read_repos_file,
+        emit_phase1_output,
+        gather_phase1_rows,
+    )
+
+    paths = [_Path(p).expanduser() for p in (args.phase1_repos or [])]
+    if args.phase1_repos_file:
+        paths.extend(_read_repos_file(_Path(args.phase1_repos_file)))
+    if not paths:
+        paths = [_Path(args.repo).resolve()]
+
+    rows = gather_phase1_rows(paths)
+    out = args.phase1_output
+    jl = args.phase1_jsonl
+    emit_phase1_output(rows, _Path(out) if out else None, _Path(jl) if jl else None)
+    if out:
+        print(f"Wrote {len(rows)} row(s) to {out}", file=sys.stderr)
 
 
 def _findings_dashboard(base_path: str, args) -> None:
@@ -1750,7 +1779,7 @@ def generate_dashboard(
 
     # --- Information-theoretic coverage estimation ---
     try:
-        from info_theory import compute_coverage_from_history, finding_information_score
+        from info_theory import compute_coverage_from_history, finding_information_score, compute_delta_repo
         scan_history = load_scan_history(base_path)
         coverage = compute_coverage_from_history(scan_history, findings)
         # Attach info_score to each finding
@@ -1762,12 +1791,15 @@ def generate_dashboard(
             f["info_score"] = round(info["info_score"] * discount, 1)
             f["discovery_value"] = info.get("discovery_value", 0.0)
             f["concentration_factor"] = info.get("concentration_factor", 0.0)
+        delta = compute_delta_repo(findings)
     except Exception:
         coverage = {
             "estimated_total": len(findings), "coverage_pct": 100,
             "unseen_estimate": 0, "ci_lower": len(findings), "ci_upper": len(findings),
             "discovery_trend": "insufficient_data", "scans": 0,
         }
+        delta = {"delta_repo": 0.0, "health_factor": 1.0, "health_emoji": "🟢",
+                 "health_label": "excellent", "active_count": 0, "breakdown": {}}
 
     # Build custom scoring badge for dashboard header
     from scoring import diff_from_defaults
@@ -1886,6 +1918,11 @@ def generate_dashboard(
         coverage_ci_upper=coverage.get("ci_upper", 0),
         coverage_json=json.dumps(coverage, ensure_ascii=False),
         coverage_matrix_json=json.dumps(compute_coverage_matrix(base_path), ensure_ascii=False),
+        delta_repo=delta["delta_repo"],
+        health_factor=delta["health_factor"],
+        health_emoji=delta["health_emoji"],
+        health_label=delta["health_label"],
+        delta_json=json.dumps(delta, ensure_ascii=False),
     )
 
     print("  └ HTML 書き出し中...", file=_sys.stderr, flush=True)

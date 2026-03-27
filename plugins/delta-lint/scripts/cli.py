@@ -933,6 +933,28 @@ def main():
     fv.add_argument("--model", default="claude-sonnet-4-20250514", help="LLM model for verification")
     fv.add_argument("--backend", default="cli", choices=["cli", "api"], help="LLM backend")
 
+    # findings phase1-export (δ_repo + Chao1 CSV for empirical validation)
+    fp1 = find_sub.add_parser(
+        "phase1-export",
+        help="Export δ_repo and coverage metrics to CSV (no LLM; see docs/phase1-delta-repo-validation.md)",
+    )
+    fp1.add_argument("--repo", default=".", help="Single repo root when no REPO args and no --repos-file")
+    fp1.add_argument(
+        "phase1_repos",
+        nargs="*",
+        metavar="REPO",
+        help="Additional repo roots containing .delta-lint/",
+    )
+    fp1.add_argument(
+        "--repos-file",
+        dest="phase1_repos_file",
+        type=Path,
+        default=None,
+        help="File with one repo path per line (# comments allowed)",
+    )
+    fp1.add_argument("-o", "--output", dest="phase1_output", type=Path, default=None, help="Write CSV here")
+    fp1.add_argument("--jsonl", dest="phase1_jsonl", type=Path, default=None, help="Also append JSON lines")
+
     # --- config subcommand ---
     config_parser = subparsers.add_parser("config", help="Manage delta-lint configuration")
     config_sub = config_parser.add_subparsers(dest="config_command")

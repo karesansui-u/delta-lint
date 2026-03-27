@@ -1,0 +1,6 @@
+# One absolute or ~-expanded repo path per line (must contain .delta-lint/).
+# Pass to: python -m calibration.export_phase1_metrics --repos-file calibration/repos.example.txt
+#     or:  python cli.py findings phase1-export --repos-file calibration/repos.example.txt -o phase1.csv
+
+# /Users/you/src/my-service
+# /Users/you/src/other-lib

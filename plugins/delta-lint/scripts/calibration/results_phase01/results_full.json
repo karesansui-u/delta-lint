@@ -1,0 +1,18 @@
+[
+  {
+    "id": "⑥-low",
+    "pattern": "⑥",
+    "pattern_name": "Lifecycle Ordering",
+    "severity": "low",
+    "acc_a": 1.0,
+    "acc_b": 1.0,
+    "correct_a": 30,
+    "correct_b": 30,
+    "total_trials": 30,
+    "i_nats": 0.0,
+    "survival_factor": 1.0,
+    "model": "claude-haiku-4-5-20251001",
+    "trials_per_question": 10,
+    "n_questions": 3
+  }
+]

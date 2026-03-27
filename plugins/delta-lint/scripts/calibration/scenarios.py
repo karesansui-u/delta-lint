@@ -397,6 +397,7 @@ class Order:
 
     # ===================================================================
     # ③ External Spec Divergence
+    # (Redesigned: use internal/niche specs LLM can't know from training)
     # ===================================================================
     {
         "id": "③-high",
@@ -404,56 +405,52 @@ class Order:
         "pattern_name": "External Spec Divergence",
         "severity": "high",
         "visible_code": """
-# oauth2_server.py — OAuth2 token endpoint (RFC 6749 compliant)
+# sensor_api.py — IoT sensor data ingestion
 from flask import Flask, request, jsonify
-import secrets
-import time
 
 app = Flask(__name__)
 
-@app.route("/oauth/token", methods=["POST"])
-def token():
-    \"\"\"Issue access token per RFC 6749 §5.1.\"\"\"
-    grant_type = request.form.get("grant_type")
-    if grant_type != "authorization_code":
-        return jsonify({"error": "unsupported_grant_type"}), 400
+@app.route("/api/v2/readings", methods=["POST"])
+def submit_reading():
+    data = request.get_json()
+    sensor_id = data["sensor_id"]
+    value = float(data["value"])
+    unit = data.get("unit", "celsius")
+    ts = data.get("timestamp")
+    store_reading(sensor_id, value, unit, ts)
+    return jsonify({"status": "ok"})
 
-    code = request.form.get("code")
-    if not validate_code(code):
-        return jsonify({"error": "invalid_grant"}), 400
-
-    access_token = secrets.token_urlsafe(32)
-    return jsonify({
-        "access_token": access_token,
-        "expires_in": 3600,
-    })
+@app.route("/api/v2/readings/<sensor_id>", methods=["GET"])
+def get_readings(sensor_id):
+    readings = fetch_readings(sensor_id)
+    return jsonify({"readings": readings})
 """,
-        "hidden_behavior": "RFC 6749 §5.1 REQUIRES the token response to include a `token_type` field (typically 'Bearer'). The implementation omits `token_type` from the response. Spec-compliant OAuth2 clients (like most libraries) expect this field and will either raise an error or fail to properly construct Authorization headers, since they don't know whether to use 'Bearer', 'MAC', or another scheme.",
+        "hidden_behavior": "The internal sensor protocol spec (v2.3) requires all temperature values to be submitted in millikelvin (mK), not celsius. store_reading() passes the value directly to the time-series database which indexes in millikelvin. A reading of value=23.5 (intended as 23.5°C = 296650 mK) is stored as 23.5 mK (≈ -273.13°C). Downstream alerting triggers on any value below 200000 mK as 'sensor failure', so every celsius reading is flagged as a broken sensor.",
         "questions": [
             {
-                "q": "A developer integrates this OAuth2 server with a standard Python `requests-oauthlib` client. The token request succeeds (200 OK) but subsequent API calls fail with 401. Why?",
+                "q": "A sensor sends value=23.5 with unit='celsius'. The dashboard shows -273.13°C. Why?",
                 "options": {
-                    "A": "The access token expired immediately",
-                    "B": "The response is missing `token_type`, so the client doesn't know to send 'Bearer <token>' in the Authorization header",
-                    "C": "The CORS configuration is blocking the Authorization header",
+                    "A": "The dashboard has a rendering bug with decimal values",
+                    "B": "The database stores in millikelvin per the v2.3 spec, so 23.5 is interpreted as 23.5 mK, not 23.5°C",
+                    "C": "The sensor firmware is sending negative values",
                 },
                 "correct": "B",
             },
             {
-                "q": "The custom frontend app works fine with this OAuth2 server because it hardcodes 'Authorization: Bearer <token>'. What happens when a mobile team uses the standard Google OAuth2 library?",
+                "q": "All 500 sensors are flagged as 'failed' in the alerting system, but they're physically working fine. What is happening?",
                 "options": {
-                    "A": "It works the same way — the library handles missing fields gracefully",
-                    "B": "The library throws a 'missing token_type' error during token parsing",
-                    "C": "The library defaults to Bearer and it works",
+                    "A": "The alerting threshold is misconfigured",
+                    "B": "Values arrive in celsius but the alert checks millikelvin — 23.5 mK is far below the 200000 mK failure threshold",
+                    "C": "Network latency is causing stale readings",
                 },
                 "correct": "B",
             },
             {
-                "q": "An audit flags the OAuth2 server as 'non-compliant with RFC 6749'. Which specific requirement is violated?",
+                "q": "The v1 API worked correctly with celsius values. What changed in v2?",
                 "options": {
-                    "A": "The token is not signed (should be JWT)",
-                    "B": "The token response omits the REQUIRED `token_type` field (§5.1)",
-                    "C": "The server doesn't support refresh tokens",
+                    "A": "v2 added authentication that breaks old sensors",
+                    "B": "v2 requires values in millikelvin per the internal protocol spec, but the API still accepts the raw number without conversion",
+                    "C": "v2 changed the JSON schema for readings",
                 },
                 "correct": "B",
             },
@@ -465,58 +462,46 @@ def token():
         "pattern_name": "External Spec Divergence",
         "severity": "medium",
         "visible_code": """
-# http_cache.py — HTTP response caching middleware
-class CacheMiddleware:
-    def __init__(self, app):
-        self.app = app
-        self._cache = {}
+# invoice_export.py — Export invoices to partner format
+import xml.etree.ElementTree as ET
 
-    def __call__(self, request):
-        cache_control = request.headers.get("Cache-Control", "")
-
-        if "no-cache" in cache_control:
-            # Client says don't use cache — skip cache entirely
-            self._cache.pop(request.url, None)
-            response = self.app(request)
-            return response
-
-        cached = self._cache.get(request.url)
-        if cached and not cached.is_stale():
-            return cached
-
-        response = self.app(request)
-        if response.status == 200:
-            self._cache[request.url] = response
-        return response
+def export_invoice(invoice):
+    root = ET.Element("Invoice")
+    ET.SubElement(root, "Number").text = invoice["number"]
+    ET.SubElement(root, "Date").text = invoice["date"]
+    ET.SubElement(root, "Amount").text = str(invoice["amount"])
+    ET.SubElement(root, "Currency").text = invoice["currency"]
+    ET.SubElement(root, "Tax").text = str(invoice["tax"])
+    return ET.tostring(root, encoding="unicode")
 """,
-        "hidden_behavior": "Per HTTP spec (RFC 7234 §5.2.1.4), `no-cache` does NOT mean 'don't cache'. It means 'you may cache, but MUST revalidate with the origin server before using the cached response' (via If-None-Match/If-Modified-Since). The implementation treats `no-cache` as `no-store` (purges cache and never stores). The correct behavior for `no-store` is what's implemented for `no-cache`. This means: (1) cached responses are unnecessarily purged, (2) revalidation is never attempted (missing conditional requests), (3) `no-store` is not implemented at all.",
+        "hidden_behavior": "The partner's invoice schema (PartnerSpec v4.1) requires Amount to be net (before tax), with a separate GrossAmount field for the total. This code sets Amount=invoice['amount'] where invoice['amount'] is the gross total (including tax). The partner system treats Amount as net and adds Tax on top, resulting in double-taxation. A $100 invoice with $10 tax becomes $110 net + $10 tax = $120 in the partner's system.",
         "questions": [
             {
-                "q": "A client sends `Cache-Control: no-cache` expecting the server to revalidate the cached version with an If-None-Match check. What actually happens?",
+                "q": "An invoice for $100 (with $10 tax) is exported. The partner shows the total as $120. Why?",
                 "options": {
-                    "A": "The server revalidates as expected and returns 304 if unchanged",
-                    "B": "The server purges the cached response and fetches a full new response, wasting bandwidth",
-                    "C": "The server ignores the header and returns the stale cached version",
+                    "A": "Currency conversion is adding fees",
+                    "B": "The code sends gross as Amount, but the partner expects net — so tax is applied twice ($100 + $10 + $10)",
+                    "C": "The XML encoding is corrupting numeric values",
                 },
                 "correct": "B",
             },
             {
-                "q": "A CDN in front of this server sends `Cache-Control: no-store` to prevent sensitive data from being cached. Does this work?",
+                "q": "Invoices with tax=0 export correctly but all taxed invoices are wrong. What does this tell you?",
                 "options": {
-                    "A": "Yes — no-store is handled correctly",
-                    "B": "No — the server has no handler for no-store, so sensitive data IS cached",
-                    "C": "Partially — it only works for GET requests",
+                    "A": "The Tax field has a data type mismatch",
+                    "B": "When tax=0, gross equals net so the bug is invisible — the Amount/net confusion only matters when tax > 0",
+                    "C": "Zero-tax invoices use a different export path",
                 },
                 "correct": "B",
             },
             {
-                "q": "After 'fixing' the no-cache handling, bandwidth usage drops 40%. Why?",
+                "q": "The fix is to send Amount = invoice['amount'] - invoice['tax']. Why wasn't this obvious?",
                 "options": {
-                    "A": "The fix enabled gzip compression",
-                    "B": "Proper no-cache revalidation returns 304 Not Modified for unchanged resources instead of full re-downloads",
-                    "C": "The fix reduced the number of cache entries",
+                    "A": "The partner spec uses the same field names as the internal system but with different semantics",
+                    "B": "The XML schema validation doesn't check numeric ranges",
+                    "C": "The partner never documented the Amount field",
                 },
-                "correct": "B",
+                "correct": "A",
             },
         ],
     },
@@ -526,54 +511,48 @@ class CacheMiddleware:
         "pattern_name": "External Spec Divergence",
         "severity": "low",
         "visible_code": """
-# csv_export.py — Export data to CSV (RFC 4180)
-import io
+# report_sender.py — Send reports to compliance system
+import requests
 
-def export_to_csv(records, fields):
-    \"\"\"Export records to CSV format per RFC 4180.\"\"\"
-    output = io.StringIO()
-
-    # Header
-    output.write(",".join(fields) + "\\n")
-
-    # Data rows
-    for record in records:
-        row = []
-        for field in fields:
-            value = str(record.get(field, ""))
-            if "," in value or '"' in value:
-                value = '"' + value.replace('"', '""') + '"'
-            row.append(value)
-        output.write(",".join(row) + "\\n")
-
-    return output.getvalue()
+def send_report(report_data):
+    \"\"\"Send report to compliance API.\"\"\"
+    # NOTE: compliance API docs say field order matters
+    # but our dict ordering should be fine (Python 3.7+ preserves insertion order)
+    payload = {
+        "report_id": report_data["id"],
+        "entity": report_data["entity"],
+        "period": report_data["period"],
+        "figures": report_data["figures"],
+    }
+    resp = requests.post("https://compliance.internal/api/reports", json=payload)
+    return resp.status_code == 200
 """,
-        "hidden_behavior": "RFC 4180 specifies CRLF (\\r\\n) as the line ending, not LF (\\n). The implementation uses LF only. Most modern CSV parsers tolerate this, but: (1) strict parsers (some financial/government systems) reject the file, (2) when the CSV is opened in older Windows tools, all rows appear on one line, (3) automated validation against RFC 4180 schema will flag every line as non-compliant.",
+        "hidden_behavior": "The compliance API requires the 'figures' field to contain string-encoded decimals with exactly 2 decimal places (e.g. '1234.50'), not numeric types. Python's json.dumps converts report_data['figures'] (a dict of floats) to JSON numbers like 1234.5 (no trailing zero). The compliance system silently accepts the payload but marks the report as 'pending manual review' instead of 'auto-approved', because the figures fail strict decimal format validation.",
         "questions": [
             {
-                "q": "A bank's automated CSV import system rejects the exported file with 'invalid line terminator'. What is the issue?",
+                "q": "Reports are submitted successfully (200 OK) but always land in 'pending manual review' instead of 'auto-approved'. Why?",
                 "options": {
-                    "A": "The CSV has trailing whitespace in fields",
-                    "B": "The file uses LF (\\n) line endings instead of CRLF (\\r\\n) as required by RFC 4180",
-                    "C": "The header row is missing required bank-specific columns",
+                    "A": "The entity field contains invalid characters",
+                    "B": "The figures are sent as JSON numbers (1234.5) but the API requires string decimals with 2 places ('1234.50') for auto-approval",
+                    "C": "The report_id format is wrong",
                 },
                 "correct": "B",
             },
             {
-                "q": "The CSV works fine in Google Sheets and Python pandas, but looks like a single long line in Windows Notepad (older versions). Why?",
+                "q": "A report with figures all being whole numbers (100.00, 200.00) is auto-approved, but one with 99.50 is not. Why?",
                 "options": {
-                    "A": "The file encoding is wrong (should be UTF-16)",
-                    "B": "Old Windows Notepad requires CRLF to display line breaks; the file only has LF",
-                    "C": "The CSV is too large for Notepad to render",
+                    "A": "Amounts under 100 require extra approval",
+                    "B": "JSON serializes 100.00 as 100.0 and 99.50 as 99.5 — both lack the required 2-decimal format, but whole numbers may pass a looser check",
+                    "C": "The period field is invalid for that report",
                 },
                 "correct": "B",
             },
             {
-                "q": "An RFC 4180 compliance validator flags 100% of the rows. The field quoting and escaping are correct. What is failing?",
+                "q": "The comment in the code hints at a potential issue. What does it miss?",
                 "options": {
-                    "A": "The BOM (byte order mark) is missing",
-                    "B": "Every line uses LF instead of the required CRLF terminator",
-                    "C": "The header row should not have a line ending",
+                    "A": "Dict ordering is actually not preserved",
+                    "B": "The real issue isn't field order but data types — the comment worries about ordering while figures need to be formatted strings, not floats",
+                    "C": "The API URL is wrong",
                 },
                 "correct": "B",
             },
@@ -757,53 +736,54 @@ def get_user_profile(user_id):
     # ===================================================================
     # ⑤ Paired-Setting Override
     # ===================================================================
+    # ===================================================================
+    # ⑤ Paired-Setting Override
+    # (Redesigned: shorter options, varied correct answers, simpler hidden behavior)
+    # ===================================================================
     {
         "id": "⑤-high",
         "pattern": "⑤",
         "pattern_name": "Paired-Setting Override",
         "severity": "high",
         "visible_code": """
-# database.py — Database connection pool
-import os
+# upload.py — File upload handler
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
 
-DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": int(os.getenv("DB_PORT", "5432")),
-    "max_connections": int(os.getenv("DB_MAX_CONNECTIONS", "100")),
-    "database": os.getenv("DB_NAME", "myapp"),
-}
-
-# The ops team has set DB_MAX_CONNECTIONS=100 in production
-# to handle peak traffic of ~80 concurrent users.
+def handle_upload(file_obj):
+    data = file_obj.read()
+    if len(data) > MAX_UPLOAD_SIZE:
+        raise ValueError("File too large")
+    save_to_storage(data)
+    return {"status": "ok", "size": len(data)}
 """,
-        "hidden_behavior": "The connection pool library (pgbouncer config) has a separate `pool_size` parameter set to 10 in the pgbouncer.ini config file. `pool_size` acts as a hard upper limit that OVERRIDES `max_connections`. Even though the app thinks it can use 100 connections, pgbouncer silently queues anything above 10. Under load with 80 concurrent users, 70 connections are stuck waiting in the pgbouncer queue, causing cascading timeouts and the app appearing to 'hang' despite the database being healthy.",
+        "hidden_behavior": "The nginx reverse proxy in front of this app has `client_max_body_size 1m` (1 MB default). Nginx rejects any request body larger than 1 MB with a 413 error BEFORE it reaches the Python app. The app's 50 MB limit is never checked for files between 1-50 MB because nginx kills the request first. Users see '413 Request Entity Too Large' from nginx, not the app's error message.",
         "questions": [
             {
-                "q": "Under peak load (80 concurrent users), the application hangs but the PostgreSQL server shows only 10 active connections and low CPU. Why?",
+                "q": "A user uploads a 5 MB file. The app's 50 MB limit should allow it. What happens?",
                 "options": {
-                    "A": "The application has a deadlock in its connection handling",
-                    "B": "PgBouncer's pool_size=10 silently caps connections, queuing 70 requests regardless of the app's max_connections=100",
-                    "C": "PostgreSQL's max_connections setting is too low",
+                    "A": "Upload succeeds normally",
+                    "B": "App rejects it as too large",
+                    "C": "Nginx returns 413 before the app sees the request",
                 },
-                "correct": "B",
+                "correct": "C",
             },
             {
-                "q": "The ops team increases DB_MAX_CONNECTIONS from 100 to 200 to fix the hanging issue. Does this help?",
+                "q": "Files under 1 MB upload fine. Files over 1 MB always fail with 413. Where is the bottleneck?",
                 "options": {
-                    "A": "Yes — more connections are available now",
-                    "B": "No — pgbouncer's pool_size=10 is the actual bottleneck; changing the app config has no effect",
-                    "C": "Partially — it helps but doesn't fully resolve the issue",
+                    "A": "The app's MAX_UPLOAD_SIZE is wrong",
+                    "B": "The storage backend rejects large files",
+                    "C": "Nginx's client_max_body_size is 1 MB, overriding the app's 50 MB limit",
                 },
-                "correct": "B",
+                "correct": "C",
             },
             {
-                "q": "What makes this bug particularly hard to diagnose?",
+                "q": "The developer raises MAX_UPLOAD_SIZE to 100 MB. Upload behavior does not change. Why?",
                 "options": {
-                    "A": "The error messages are in a different language",
-                    "B": "The app config says 100 connections and no error is raised, but a separate infrastructure config silently overrides it to 10 — no warnings or logs indicate the cap",
-                    "C": "The database connection protocol is encrypted so traffic can't be inspected",
+                    "A": "A separate nginx config caps uploads at 1 MB",
+                    "B": "The file_obj.read() call has a buffer limit",
+                    "C": "The storage backend has its own size limit",
                 },
-                "correct": "B",
+                "correct": "A",
             },
         ],
     },
@@ -813,53 +793,45 @@ DB_CONFIG = {
         "pattern_name": "Paired-Setting Override",
         "severity": "medium",
         "visible_code": """
-# cache_config.py — Redis cache configuration
+# worker.py — Background task processor
 import os
 
-CACHE_CONFIG = {
-    "ttl": int(os.getenv("CACHE_TTL", "3600")),      # 1 hour
-    "prefix": os.getenv("CACHE_PREFIX", "myapp"),
-    "serializer": "json",
-}
+WORKER_TIMEOUT = int(os.getenv("WORKER_TIMEOUT", "300"))  # 5 minutes
 
-# TTL is set to 3600 seconds (1 hour) to balance freshness vs DB load.
-# Most data updates every few hours, so 1 hour cache is reasonable.
-
-def cache_set(key, value):
-    redis.setex(f"{CACHE_CONFIG['prefix']}:{key}", CACHE_CONFIG['ttl'], serialize(value))
-
-def cache_get(key):
-    data = redis.get(f"{CACHE_CONFIG['prefix']}:{key}")
-    return deserialize(data) if data else None
+def process_task(task):
+    # Long-running task, may take up to 5 minutes
+    result = run_heavy_computation(task["data"])
+    store_result(task["id"], result)
+    return result
 """,
-        "hidden_behavior": "Redis is configured with `maxmemory-policy allkeys-lru` and `maxmemory 256mb`. When the cache grows beyond 256MB, Redis evicts the least recently used keys regardless of their TTL. With the current data growth, the cache fills up in ~15 minutes. So even though TTL is set to 3600s (1 hour), most entries are evicted within 15 minutes by the LRU policy, making the TTL setting effectively meaningless. The cache hit rate is ~20% instead of the expected ~90%.",
+        "hidden_behavior": "The task queue (Celery) is configured with `task_time_limit=60` in celeryconfig.py. Celery sends SIGKILL to any task running longer than 60 seconds. The app's WORKER_TIMEOUT=300 is never reached because Celery kills the worker process at 60 seconds. Tasks that take 1-5 minutes are silently killed and retried, creating duplicate partial results.",
         "questions": [
             {
-                "q": "Cache TTL is 3600 seconds but monitoring shows most entries disappear after ~15 minutes. No code deletes them. Why?",
+                "q": "A task that takes 90 seconds is killed after 60 seconds. WORKER_TIMEOUT is 300. Why?",
                 "options": {
-                    "A": "Redis has a bug in its TTL implementation",
-                    "B": "Redis's maxmemory LRU eviction is removing entries before TTL expires because the 256MB limit is reached in ~15 minutes",
-                    "C": "The serializer is corrupting keys, making them unfindable",
+                    "A": "The OS is killing the process for memory usage",
+                    "B": "Celery's task_time_limit=60 kills the task before the app timeout",
+                    "C": "The database connection times out",
                 },
                 "correct": "B",
             },
             {
-                "q": "The team increases CACHE_TTL to 7200 to improve cache hit rate. The hit rate stays at ~20%. Why?",
+                "q": "Increasing WORKER_TIMEOUT from 300 to 600 has no effect on task completion. Why?",
                 "options": {
-                    "A": "The application is reading different keys each time",
-                    "B": "TTL doesn't matter when entries are evicted by memory pressure — the maxmemory limit is the actual constraint",
-                    "C": "The Redis connection is dropping intermittently",
+                    "A": "The env var is not being read correctly",
+                    "B": "The actual kill comes from Celery at 60s, not from WORKER_TIMEOUT",
+                    "C": "The task code has an infinite loop",
                 },
                 "correct": "B",
             },
             {
-                "q": "What is the correct fix to achieve the intended 1-hour cache behavior?",
+                "q": "Short tasks (<60s) always succeed. Long tasks (>60s) always fail. What causes this pattern?",
                 "options": {
-                    "A": "Set TTL to a very large value so entries are never expired",
-                    "B": "Increase Redis maxmemory to accommodate 1 hour of data, or reduce cache entry size",
-                    "C": "Switch to a different caching library",
+                    "A": "Long tasks hit a memory limit",
+                    "B": "Long tasks exceed the network timeout",
+                    "C": "A 60-second hard limit exists outside the app code",
                 },
-                "correct": "B",
+                "correct": "C",
             },
         ],
     },
@@ -869,50 +841,44 @@ def cache_get(key):
         "pattern_name": "Paired-Setting Override",
         "severity": "low",
         "visible_code": """
-# logging_config.py — Application logging
-import os
-import logging
+# rate_limiter.py — API rate limiting
+RATE_LIMIT = 1000  # requests per minute
 
-LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG")
+# TODO: check if the load balancer has its own rate limit
+# (saw 429 errors in prod that don't match our limit)
 
-def setup_logging():
-    logging.basicConfig(
-        level=getattr(logging, LOG_LEVEL),
-        format="%(asctime)s [%(levelname)s] %(message)s"
-    )
-    logger = logging.getLogger("myapp")
-    logger.info(f"Logging initialized at {LOG_LEVEL} level")
-    return logger
-
-# Developer sets LOG_LEVEL=DEBUG in .env for local development
-# to see all debug messages for troubleshooting.
+def check_rate(client_ip):
+    count = get_request_count(client_ip, window=60)
+    if count > RATE_LIMIT:
+        return False, "Rate limit exceeded"
+    return True, None
 """,
-        "hidden_behavior": "The application framework (e.g., gunicorn/uvicorn config) has its own `--log-level warning` flag in the Procfile/docker-compose, which overrides the root logger's level AFTER setup_logging() runs. So even though LOG_LEVEL=DEBUG is set and the 'Logging initialized at DEBUG level' message appears at startup, the actual effective level becomes WARNING. Debug and info messages are silently dropped after the framework's logger reconfiguration.",
+        "hidden_behavior": "The AWS ALB (Application Load Balancer) has a connection limit of 100 concurrent connections per target. When a single client makes many parallel requests, the ALB returns 503 after 100 concurrent connections, well before the app's 1000/min rate limit is reached. The TODO comment in the code hints at this issue but was never investigated.",
         "questions": [
             {
-                "q": "A developer sets LOG_LEVEL=DEBUG and sees 'Logging initialized at DEBUG level' at startup. But debug messages from request handlers never appear. Why?",
+                "q": "A client making 150 parallel requests gets 503 errors, not 429. The app's rate limit is 1000/min. Why?",
                 "options": {
-                    "A": "The request handlers use a different logger instance",
-                    "B": "The application framework overrides the log level to WARNING after setup_logging() runs, silently dropping DEBUG/INFO messages",
-                    "C": "Debug messages are buffered and only flushed on error",
+                    "A": "The app has a bug in counting requests",
+                    "B": "The ALB's 100-connection limit triggers before the app's rate limit",
+                    "C": "The client is sending malformed requests",
                 },
                 "correct": "B",
             },
             {
-                "q": "The startup message appears at INFO level, confirming the logger works. But subsequent INFO messages from business logic are missing. What's happening?",
+                "q": "The TODO comment mentions unexplained 429 errors. The actual error is 503. What does this suggest?",
                 "options": {
-                    "A": "The business logic is wrapped in try/except that swallows log calls",
-                    "B": "The startup message is logged BEFORE the framework reconfigures the log level; subsequent messages are after the override to WARNING",
-                    "C": "INFO messages are being sent to a different log file",
+                    "A": "The load balancer is returning 503 instead of 429 for its own limit",
+                    "B": "The app's rate limiter is broken",
+                    "C": "The 429 and 503 errors are unrelated",
                 },
-                "correct": "B",
+                "correct": "A",
             },
             {
-                "q": "Changing LOG_LEVEL to any value (DEBUG, INFO, WARNING) doesn't change the visible log output. Only WARNING and above always appear. What should the developer investigate?",
+                "q": "Raising RATE_LIMIT to 5000 does not stop the 503 errors. What should be checked?",
                 "options": {
-                    "A": "The logging library version for compatibility issues",
-                    "B": "The application framework's own log-level configuration, which overrides the app's logging setup",
-                    "C": "Whether the LOG_LEVEL environment variable is being read correctly",
+                    "A": "The database connection pool",
+                    "B": "Infrastructure-level limits outside the app code",
+                    "C": "The HTTP client timeout settings",
                 },
                 "correct": "B",
             },
@@ -921,6 +887,7 @@ def setup_logging():
 
     # ===================================================================
     # ⑥ Lifecycle Ordering
+    # (Redesigned: clearer scenarios, shorter options, better calibration)
     # ===================================================================
     {
         "id": "⑥-high",
@@ -928,51 +895,51 @@ def setup_logging():
         "pattern_name": "Lifecycle Ordering",
         "severity": "high",
         "visible_code": """
-# app.py — Application startup
-from db import DatabasePool
-from cache import CacheWarmer
-from api import start_api_server
+# migrate.py — Database migration runner
+def run_migrations():
+    create_users_table()
+    create_orders_table()
+    seed_admin_user()
+    add_foreign_keys()
 
-def main():
-    print("Starting application...")
+def create_users_table():
+    db.execute("CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT)")
 
-    # Initialize components
-    db = DatabasePool(host="db.internal", pool_size=20)
-    cache = CacheWarmer(db)
-    api = start_api_server(port=8080, db=db, cache=cache)
+def create_orders_table():
+    db.execute("CREATE TABLE orders (id SERIAL, user_id INT, total DECIMAL)")
 
-    print("Application started")
-    api.serve_forever()
+def seed_admin_user():
+    db.execute("INSERT INTO users (name) VALUES ('admin')")
 
-if __name__ == "__main__":
-    main()
+def add_foreign_keys():
+    db.execute("ALTER TABLE orders ADD FOREIGN KEY (user_id) REFERENCES users(id)")
 """,
-        "hidden_behavior": "DatabasePool.__init__() starts an async connection establishment in the background and returns immediately. The pool is NOT ready when the constructor returns — connections are still being established. CacheWarmer.__init__() immediately calls db.query() to pre-load hot data, but the pool has 0 ready connections at this point. The query hangs for 5-10 seconds waiting for the first connection, then loads stale data from a connection that was mid-setup. Meanwhile, start_api_server() begins accepting requests before the cache is warmed, serving cold-cache responses.",
+        "hidden_behavior": "seed_admin_user() runs BEFORE add_foreign_keys(). The orders table has no foreign key constraint yet when the seeder runs. Another migration script (run in parallel by a different pod) inserts test orders with user_id=999 during this window. When add_foreign_keys() runs, it fails with 'insert or update on table orders violates foreign key constraint' because user_id=999 doesn't exist in users. The migration crashes halfway, leaving the database in an inconsistent state with some tables created but no foreign keys.",
         "questions": [
             {
-                "q": "The first 10 seconds after startup, API responses take 5-10x longer than normal. After that, performance normalizes. Why?",
+                "q": "add_foreign_keys() fails with a constraint violation. All code looks correct. What happened?",
                 "options": {
-                    "A": "JIT compilation is warming up the application code",
-                    "B": "DatabasePool connections are still being established in the background — the cache warmer and early API requests compete for half-ready connections",
-                    "C": "The API server takes time to bind to the port",
+                    "A": "The users table has duplicate IDs",
+                    "B": "Invalid orders were inserted between create_orders_table() and add_foreign_keys()",
+                    "C": "The SQL syntax for FOREIGN KEY is wrong",
                 },
                 "correct": "B",
             },
             {
-                "q": "The cache warmer logs show it loaded 500 items in 8 seconds at startup. Normally this takes 200ms. What is happening?",
+                "q": "The migration works in dev (single process) but fails in production. Why?",
                 "options": {
-                    "A": "The database is under heavy load from other services",
-                    "B": "The cache warmer runs before the connection pool is ready, so every query waits for connections to be established",
-                    "C": "The cache entries are larger than expected",
+                    "A": "Production has a different PostgreSQL version",
+                    "B": "In production, parallel processes insert data during the window before foreign keys are added",
+                    "C": "The production database has different permissions",
                 },
                 "correct": "B",
             },
             {
-                "q": "A health check at startup returns 200 OK but the app can't serve real requests for another 10 seconds. Why is the health check misleading?",
+                "q": "Moving add_foreign_keys() to run right after create_orders_table() fixes the issue. Why?",
                 "options": {
-                    "A": "The health check endpoint doesn't require authentication",
-                    "B": "start_api_server() makes the port available before dependencies (DB pool, cache) are actually ready",
-                    "C": "The health check uses a different network interface",
+                    "A": "It reduces the total migration time",
+                    "B": "It closes the window where invalid data can be inserted into orders",
+                    "C": "Foreign keys must be added before any INSERT",
                 },
                 "correct": "B",
             },
@@ -984,55 +951,52 @@ if __name__ == "__main__":
         "pattern_name": "Lifecycle Ordering",
         "severity": "medium",
         "visible_code": """
-# worker.py — Background job processor
-import signal
-import sys
+# pipeline.py — Data processing pipeline
+class Pipeline:
+    def run(self, data):
+        validated = self.validate(data)
+        enriched = self.enrich(validated)
+        result = self.transform(enriched)
+        self.publish(result)
+        return result
 
-class JobWorker:
-    def __init__(self):
-        self.running = True
-        self.current_job = None
-        signal.signal(signal.SIGTERM, self._handle_shutdown)
+    def validate(self, data):
+        return [r for r in data if r.get("id") and r.get("value")]
 
-    def _handle_shutdown(self, signum, frame):
-        print("Shutdown signal received, stopping gracefully...")
-        self.running = False
+    def enrich(self, data):
+        for record in data:
+            record["source"] = lookup_source(record["id"])
+        return data
 
-    def run(self):
-        while self.running:
-            self.current_job = self.fetch_next_job()
-            if self.current_job:
-                self.process_job(self.current_job)
-                self.mark_complete(self.current_job)
-        print("Worker stopped")
-        sys.exit(0)
+    def transform(self, data):
+        return [{"id": r["id"], "amount": r["value"] * r.get("rate", 1.0)} for r in data]
 """,
-        "hidden_behavior": "When SIGTERM arrives during process_job(), the signal handler sets self.running = False. But process_job() may take 30+ seconds for large jobs. The sys.exit(0) in run() is called AFTER the current job completes. However, Kubernetes has a 30-second terminationGracePeriodSeconds. If the job takes more than 30 seconds, Kubernetes sends SIGKILL which terminates the process immediately. The job is neither completed nor marked as failed — it stays in 'processing' state forever, becoming a zombie job that blocks the queue slot.",
+        "hidden_behavior": "lookup_source() in enrich() makes an HTTP call to an external service. This service has a rate limit of 10 requests/second. When data has 500+ records, enrich() fires 500 HTTP calls in rapid succession, gets rate-limited (429 errors) after the first 10, and returns None for the remaining 490 records' source field. transform() then runs on records where source is None, which doesn't cause an error (source isn't used in transform), but publish() sends 490 records with source=None to downstream consumers who reject them.",
         "questions": [
             {
-                "q": "A long-running job (45 seconds) is in progress when a Kubernetes rolling update starts. What happens to the job?",
+                "q": "Processing 5 records works perfectly. Processing 500 records results in 490 records rejected by downstream. Why?",
                 "options": {
-                    "A": "The job completes normally and the pod terminates after",
-                    "B": "The job is interrupted cleanly and retried on the new pod",
-                    "C": "SIGTERM sets running=False, but Kubernetes sends SIGKILL after 30s, leaving the job stuck in 'processing' state permanently",
-                },
-                "correct": "C",
-            },
-            {
-                "q": "After several deployments, the team notices 5 jobs stuck in 'processing' state with no worker assigned. What happened?",
-                "options": {
-                    "A": "Database lock contention caused the workers to deadlock",
-                    "B": "These jobs were killed by SIGKILL during rolling updates before mark_complete() could run, and no cleanup recovers them",
-                    "C": "The job queue has a memory leak",
+                    "A": "transform() has a bug with large datasets",
+                    "B": "enrich() gets rate-limited after 10 lookups, leaving 490 records with source=None",
+                    "C": "The validate step filters out most records",
                 },
                 "correct": "B",
             },
             {
-                "q": "The graceful shutdown handler looks correct (sets running=False, finishes current job). What is it missing?",
+                "q": "The pipeline logs show no errors during the run, but downstream rejects 98% of records. What is silently failing?",
                 "options": {
-                    "A": "It should catch SIGINT as well",
-                    "B": "It doesn't account for the Kubernetes termination grace period — if the current job exceeds 30 seconds, SIGKILL forcefully terminates before cleanup can happen",
-                    "C": "It should use threading instead of signal handling",
+                    "A": "The publish step is corrupting data",
+                    "B": "Rate-limited HTTP calls in enrich() return None without raising exceptions",
+                    "C": "The transform step drops decimal precision",
+                },
+                "correct": "B",
+            },
+            {
+                "q": "Adding a 100ms delay between lookups in enrich() fixes the issue. Why?",
+                "options": {
+                    "A": "The delay lets the database catch up",
+                    "B": "It keeps requests under the external service's rate limit",
+                    "C": "The delay reduces memory usage",
                 },
                 "correct": "B",
             },
@@ -1044,53 +1008,47 @@ class JobWorker:
         "pattern_name": "Lifecycle Ordering",
         "severity": "low",
         "visible_code": """
-# event_bus.py — Pub/sub event system
-class EventBus:
-    def __init__(self):
-        self._handlers = {}
+# notifications.py — User notification system
+def on_new_order(order):
+    # FIXME: sometimes email has wrong product name
+    # (might be a timing issue with inventory update?)
+    send_email(order["user"], f"Order confirmed: {order['product_name']}")
+    update_inventory(order["product_id"], -1)
+    log_order(order)
 
-    def on(self, event_name, handler):
-        self._handlers.setdefault(event_name, []).append(handler)
-
-    def emit(self, event_name, data):
-        for handler in self._handlers.get(event_name, []):
-            handler(data)
-
-# app_setup.py
-bus = EventBus()
-
-def init_app():
-    # Register handlers
-    bus.on("user_created", send_welcome_email)
-    bus.on("user_created", create_default_settings)
-    bus.on("user_created", log_analytics_event)
+def update_inventory(product_id, delta):
+    product = db.get(product_id)
+    product["stock"] += delta
+    if product["stock"] == 0:
+        product["name"] = product["name"] + " [OUT OF STOCK]"
+    db.save(product)
 """,
-        "hidden_behavior": "The handlers are called in registration order: send_welcome_email → create_default_settings → log_analytics_event. send_welcome_email() reads the user's settings to decide the email language. But create_default_settings() hasn't run yet at that point, so the settings don't exist. send_welcome_email() falls back to English regardless of the user's locale. This only affects the welcome email — all subsequent emails use the correct language because settings exist by then.",
+        "hidden_behavior": "When stock reaches 0, update_inventory() appends ' [OUT OF STOCK]' to the product name in the database. If two orders for the last item arrive near-simultaneously: Order A calls send_email() (correct name), then update_inventory() (stock→0, name changed). Order B calls send_email() AFTER the name was modified by Order A's inventory update, so Order B's email says 'Widget [OUT OF STOCK]' instead of 'Widget'. The FIXME comment in the code hints at this exact issue.",
         "questions": [
             {
-                "q": "Japanese users report their welcome email is in English, but all other emails are in Japanese. Why?",
+                "q": "A customer receives 'Order confirmed: Widget [OUT OF STOCK]' in their email. The order was valid. What happened?",
                 "options": {
-                    "A": "The welcome email template doesn't support Japanese",
-                    "B": "send_welcome_email runs before create_default_settings in the handler chain, so user settings (including locale) don't exist yet when the welcome email is sent",
-                    "C": "The email service has a bug with locale detection on first send",
+                    "A": "The email template has a formatting bug",
+                    "B": "Another order's update_inventory() modified the product name before this order's send_email() ran",
+                    "C": "The product was marked out of stock before the order was placed",
                 },
                 "correct": "B",
             },
             {
-                "q": "A developer adds a test: create user → check welcome email language. The test passes (email is in English, user is English-speaking). Why doesn't the test catch this bug?",
+                "q": "The bug only appears during flash sales with high concurrency. In normal traffic it never occurs. Why?",
                 "options": {
-                    "A": "The test environment uses a different email service",
-                    "B": "The test creates an English-speaking user, so the English fallback happens to produce the correct result — the bug only manifests for non-English users",
-                    "C": "The test mocks the email function",
+                    "A": "Flash sales use a different email service",
+                    "B": "High concurrency creates overlapping order processing where one order's inventory update changes the name before another's email",
+                    "C": "The database is slower during sales",
                 },
                 "correct": "B",
             },
             {
-                "q": "Swapping the handler registration order (create_default_settings before send_welcome_email) fixes the bug. What does this reveal about the system?",
+                "q": "Moving send_email() to after update_inventory() would make the bug worse. Why?",
                 "options": {
-                    "A": "The event bus has a race condition",
-                    "B": "The handlers have an implicit ordering dependency that is not documented or enforced by the event bus API",
-                    "C": "The event bus should use async handlers",
+                    "A": "Emails would be delayed too long",
+                    "B": "The email would always read the post-update name, so every last-item order gets '[OUT OF STOCK]' in the email",
+                    "C": "update_inventory might fail, and no email would be sent",
                 },
                 "correct": "B",
             },

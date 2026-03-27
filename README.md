@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/top_hero.png" alt="DeltaLint — OSS貢献実績" width="100%">
+  <img src="assets/top_hero.png" alt="DeltaLint" width="100%">
 </p>
 
 # DeltaLint
@@ -9,15 +9,106 @@
 **機能改修したら、想定してない箇所でバグが発生しました。**<br>
 **—— DeltaLint はその「壊れる場所」を特定します。**
 
-## インストール
+普通のリンターやテストでは見つからない**構造矛盾**（モジュール間の暗黙の前提の食い違い）を自動検出。<br>
+検出率 98.4%（62/63 リポ）、真陽性率 91%（92/101 件）、修正 PR マージ率 96.6%（28/29 件）。
+
+---
+
+## 3つの使い方
+
+### 1. Claude Code プラグイン（ローカル）
 
 ```bash
 claude plugin marketplace add karesansui-u/delta-lint
 claude plugin install delta-lint@delta-lint
 ```
 
-## 本ハッカソン OSS貢献実績<br>(7日間) 2026/3/13〜3/20
-**★PRマージ 14件（10リポ）**
+```
+delta-scan                    # 直近3ヶ月の変更ファイルを自動スキャン
+delta-fix                     # 優先度上位3件を自動修正 → PR
+delta-fix --ids dl-xxxxxxxx   # 特定の finding を修正
+```
+
+### 2. GitHub App（PR ごとに自動レビュー） — *Coming Soon*
+
+リポジトリに DeltaLint GitHub App をインストールするだけ。設定ファイル不要。
+
+- **PR を開くと自動スキャン** → インラインコメントで指摘 + 修正方針を提示
+- `/delta-scan` `/delta-review` コメントで手動トリガーも可能
+- OSS リポジトリは無料
+
+> 現在セルフホスト可能。Marketplace 公開準備中。セットアップ: **[GitHub App SETUP.md](plugins/delta-lint/app/SETUP.md)**
+
+### 3. GitHub Actions（CI パイプライン）
+
+```yaml
+- uses: karesansui-u/delta-lint@main
+  with:
+    mode: review          # review | suggest | scan
+    fail_severity: high   # CI を落とす閾値
+```
+
+> SARIF 出力 → GitHub Code Scanning 連携にも対応。
+
+---
+
+## 6つの検出パターン
+
+| # | パターン | 例 | なぜ起きる |
+|---|---------|---|-----------|
+| ① | **非対称デフォルト** | 会員登録で名前を空欄にするとプロフィール画面に「null」と表示される | 保存と表示で「空」の扱いが違う<br>*← 入力パスと出力パスでデフォルト値が非対称* |
+| ② | **意味的不一致** | 注文ステータス「0」が画面Aでは「未処理」、画面Bでは「キャンセル済」になる | 同じ名前が場所によって別の意味<br>*← 共有名の意味がモジュール間で暗黙に分岐* |
+| ③ | **仕様乖離** | 「全APIに認証必須」と書いてあるが認証なしで叩けるAPIがある | ドキュメントと実装がズレている<br>*← 仕様と実装の同期が手動依存で維持されない* |
+| ④ | **ガード欠落** | 新規投稿にはXSS対策があるが編集画面にはない | 片方のパスだけチェックが抜けている<br>*← 並行パスへのガード伝搬が保証されない* |
+| ⑤ | **設定干渉** | セッション有効期限30分 × 自動保存間隔40分で下書きが毎回消える | 独立に見える設定が裏で矛盾する<br>*← 設定間の暗黙の制約が文書化されていない* |
+| ⑥ | **順序依存** | ログイン直後だけ「あなたへのおすすめ」が他人のデータで表示される | 特定の条件で実行順が入れ替わる<br>*← 実行順序の前提がコードに明示されていない* |
+
+共通する原因：**開発者はスコープを絞って作業する**。機能Aを修正してテストが通れば完了。しかし機能Aと暗黙の前提を共有する機能Bが壊れていないかは、誰もチェックできていない可能性がある。DeltaLint はこの「スコープ外」を狙って検出する技術。
+
+---
+
+## アーキテクチャ
+
+<p align="center">
+  <img src="assets/architecture-flow.svg" alt="DeltaLint ワークフロー" width="100%">
+</p>
+
+```
+PR / push / コメント
+  ↓
+Webhook or GitHub Actions
+  ↓
+scanner.scan()  ← 6パターン検出パイプライン
+  ├── context 収集 → detect → verify → filter
+  └── severity / scope / lens で制御
+  ↓
+結果出力
+  ├── PR インラインコメント（GitHub App）
+  ├── PR レビュー / Check Run（Actions）
+  ├── SARIF → Code Scanning
+  └── ダッシュボード HTML（ローカル）
+```
+
+> 詳細: **[アーキテクチャ設計書](plugins/delta-lint/README.md)** | **[モジュールマップ](plugins/delta-lint/ARCHITECTURE.md)** | **[設計判断記録（ADR）](plugins/delta-lint/docs/decisions/)** | **[インタラクティブ図](https://karesansui-u.github.io/delta-lint/docs/architecture-diagram.html)**
+
+---
+
+## 背景技術
+
+この技術は、下記の論文を応用しています。
+
+> [Structural Collapse as Information Loss: The Exponential Decay Mechanism under Accumulating Constraints](https://zenodo.org/records/19254667)（[PDF](assets/Information_loss.pdf)）<br>
+> ※東大松尾研OBの方に査読してもらいました
+
+特定の条件を満たす構造は、構造矛盾によって急激に崩壊するという理論です。ソフトウェア本体を構造物と捉えて、矛盾があったときにバグとして炙り出てくるという理論応用になります。
+
+LLM 11モデル・5ベンダーでの実験と、SAT問題での数学的検証により、構造矛盾が蓄積するとシステムの健全性は**指数関数的に**崩壊する（足し算ではなく掛け算）ことを確認しています。
+
+---
+
+## ハッカソン OSS貢献実績（7日間 — 2026/3/13〜3/20）
+
+**★ PRマージ 14件（10リポ）**
 
 | 対象リポ | Stars | 結果 |
 |---------|-------|------|
@@ -36,64 +127,13 @@ claude plugin install delta-lint@delta-lint
 
 ![DeltaLint Demo](plugins/delta-lint/demo.gif)
 
+---
 
+## 環境と自律セットアップ
 
-## 使い方
-
-```
-delta-scan                    # 直近3ヶ月の変更ファイルを自動スキャン
-delta-view                    # ダッシュボードを表示
-```
-
-### 自律的なリグレッションバグ検知ワークフロー
-
-<p align="center">
-  <img src="assets/architecture-flow.svg" alt="DeltaLint ワークフロー" width="100%">
-</p>
-
-> 詳細: **[アーキテクチャ設計書](plugins/delta-lint/README.md)** | **[モジュールマップ](plugins/delta-lint/ARCHITECTURE.md)** | **[設計判断記録（ADR）](plugins/delta-lint/docs/decisions/)** | **[インタラクティブ図](https://karesansui-u.github.io/delta-lint/docs/architecture-diagram.html)**
-
-
-### 環境と自律セットアップ（デモ向け）
-
-- 初回の `scan` でも **対話で「インストールしますか？」とは聞かない**。不足している CLI や Python パッケージは **標準エラーに警告を出しつつ**、環境に応じて `npm` / `pip` / `brew` / `conda` などで **自動取得を試行**する。失敗したら **別バックエンドや機能スキップ**に落として処理を続ける（例: `gh` が無いときは Issue/PR 連携だけオフ）。
-- **ハッカソン審査の「一度命じたら最後まで」「手間ゼロ」** と相性がよい動き。なお、スクリプトが使う Python は **ユーザーマシン上のインタプリタ**（Claude 本体の内部環境ではない）。
-- **注意**: `gh` が未認証のときに `gh auth login --web` が走ると、**ブラウザでのログイン**が一度挟まることがある。デモを安定させるなら、事前に `claude` CLI が PATH に通っている状態にしておくとよい。企業端末などポリシーが厳しい環境では、勝手なパッケージ取得が許可されない場合がある。
-- **審査員・審査環境の方へ**: Issue/PR 連携や `delta-fix` など GitHub 操作をフルで確認される場合は、**`gh` のインストールと `gh auth login`（認証済み状態）が必要**になることがあります。お手数ですが、事前のログインにご協力ください（スキャン単体は `gh` なしでも動作します）。
-
-### 修正 → PR
-
-```
-delta-fix // 優先度上位3件を自動修正→PR
-delta-fix --issue xx // GitHub Issue から修正PR作成
-delta-fix --ids dl-xxxxxxxx // 特定の dl-ID を修正
-```
-
-## 6つの検出パターン
-
-| # | パターン | 例 | なぜ起きる |
-|---|---------|---|-----------|
-| ① | **非対称デフォルト** | 会員登録で名前を空欄にするとプロフィール画面に「null」と表示される | 保存と表示で「空」の扱いが違う<br>*← 入力パスと出力パスでデフォルト値が非対称* |
-| ② | **意味的不一致** | 注文ステータス「0」が画面Aでは「未処理」、画面Bでは「キャンセル済」になる | 同じ名前が場所によって別の意味<br>*← 共有名の意味がモジュール間で暗黙に分岐* |
-| ③ | **仕様乖離** | 「全APIに認証必須」と書いてあるが認証なしで叩けるAPIがある | ドキュメントと実装がズレている<br>*← 仕様と実装の同期が手動依存で維持されない* |
-| ④ | **ガード欠落** | 新規投稿にはXSS対策があるが編集画面にはない | 片方のパスだけチェックが抜けている<br>*← 並行パスへのガード伝搬が保証されない* |
-| ⑤ | **設定干渉** | セッション有効期限30分 × 自動保存間隔40分で下書きが毎回消える | 独立に見える設定が裏で矛盾する<br>*← 設定間の暗黙の制約が文書化されていない* |
-| ⑥ | **順序依存** | ログイン直後だけ「あなたへのおすすめ」が他人のデータで表示される | 特定の条件で実行順が入れ替わる<br>*← 実行順序の前提がコードに明示されていない* |
-
-共通する原因：**開発者はスコープを絞って作業する**。機能Aを修正してテストが通れば完了。しかし機能Aと暗黙の前提を共有する機能Bが壊れていないかは、誰もチェックできていない可能性がある。DeltaLint はこの「スコープ外」を狙って検出する技術。
-
-## なぜこれがこんなに機能するのか(背景技術)
-
-この技術は、下記の論文を応用したカタチです<br>
-[Structural Collapse as Information Loss: The Exponential Decay Mechanism under Accumulating Constraints](https://zenodo.org/records/19053901)（[PDF](assets/Information_loss.pdf)） <br>
-※東大松尾研OBの方に査読してもらいました<br>
-
-特定の条件を満たす構造は、構造矛盾によって急激に崩壊するという理論です。<br>
-ソフトウェア本体を構造物と捉えて、矛盾があったときにバグとして炙り出てくるという理論応用になります。
-
-LLM 11モデル・5ベンダーでの実験と、SAT問題での数学的検証により、構造矛盾が蓄積するとシステムの健全性は**指数関数的に**崩壊する（足し算ではなく掛け算）ことを確認しています。
-
-DeltaLint はこの理論を使って、コードの中から「設計図の食い違い」を自動検出します。だから普通のリンターやテストでは見つからないバグが見つかります。
+- 初回の `scan` でも **対話で「インストールしますか？」とは聞かない**。不足している CLI や Python パッケージは **標準エラーに警告を出しつつ**、環境に応じて `npm` / `pip` / `brew` / `conda` などで **自動取得を試行**する。失敗したら **別バックエンドや機能スキップ**に落として処理を続ける。
+- スクリプトが使う Python は **ユーザーマシン上のインタプリタ**（Claude 本体の内部環境ではない）。
+- Issue/PR 連携や `delta-fix` など GitHub 操作をフルで使う場合は、**`gh` のインストールと `gh auth login`（認証済み状態）が必要**。スキャン単体は `gh` なしでも動作します。
 
 ## License
 

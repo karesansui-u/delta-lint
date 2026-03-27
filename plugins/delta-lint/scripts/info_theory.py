@@ -1,13 +1,14 @@
 """
 Information-theoretic helpers for delta-lint.
 
+- **I_BASE / δ_repo**: Calibrated information loss per (pattern, severity) cell.
+  δ_repo = Σ I(pattern, severity) for active findings.
+  health = e^{-δ_repo} ∈ (0, 1].
+  Source: Phase 0 + 0.1 calibration (partial-context protocol, Haiku).
+
 - **info_score**: discovery_value × concentration_factor × INFO_SCALE
   (newness within the repo × hotspot concentration). Does not use fan_out;
   propagation risk is covered by context_score / ROI in scoring.py.
-
-  Current implementation is a simplified heuristic. Future work: true information
-  theory (self-information -log₂ P(finding exists) or conditional entropy reduction
-  from fixing this finding). Requires probabilistic model of codebase state.
 
 - **Chao1 / discovery_rate / compute_coverage_from_history**: coverage estimation
   from scan history (how many undiscovered findings may remain).
@@ -23,6 +24,58 @@ from findings import STATUS_META
 _RESOLVED_STATUSES = frozenset(k for k, v in STATUS_META.items() if v.get("closed"))
 
 
+# ---------------------------------------------------------------------------
+# I_BASE — calibrated information loss (nats) per (pattern, severity)
+# ---------------------------------------------------------------------------
+# Source: Phase 0 + 0.1 calibration experiment (2026-03-28)
+# Protocol: partial-context, Model: claude-haiku-4-5-20251001, 30 trials/cell
+#
+# I(f) = -ln(acc_A / acc_B)  where A=no annotation, B=with annotation
+# I=0 means the pattern is surface-detectable (no cross-module context needed).
+#
+# Two classes:
+#   context-dependent: I > 0 — annotation carries information
+#   surface-detectable: I = 0 — detectable from visible code / general knowledge
+
+I_BASE: dict[tuple[str, str], float] = {
+    # ① Asymmetric Defaults — context-dependent
+    ("①", "high"):   0.4055,
+    ("①", "medium"): 0.4055,
+    ("①", "low"):    0.4055,
+    # ② Semantic Mismatch — context-dependent
+    ("②", "high"):   0.4055,
+    ("②", "medium"): 3.4012,
+    ("②", "low"):    0.4055,
+    # ③ External Spec Divergence — surface-detectable
+    ("③", "high"):   0.0,
+    ("③", "medium"): 0.0,
+    ("③", "low"):    0.0,
+    # ④ Guard Non-Propagation — context-dependent (medium only)
+    ("④", "high"):   0.0,
+    ("④", "medium"): 0.2657,
+    ("④", "low"):    0.0,
+    # ⑤ Paired-Setting Override — context-dependent (high only)
+    ("⑤", "high"):   0.4055,
+    ("⑤", "medium"): 0.0,
+    ("⑤", "low"):    0.0,
+    # ⑥ Lifecycle Ordering — surface-detectable
+    ("⑥", "high"):   0.0,
+    ("⑥", "medium"): 0.0,
+    ("⑥", "low"):    0.0,
+}
+
+# Fallback for patterns not in the calibration table (⑦–⑩ etc.)
+_I_BASE_FALLBACK = 0.4055  # median of positive cells
+
+
+def i_base_lookup(pattern: str, severity: str) -> float:
+    """Look up calibrated I value for a (pattern, severity) cell.
+
+    Returns _I_BASE_FALLBACK for uncalibrated patterns.
+    """
+    return I_BASE.get((pattern, severity), _I_BASE_FALLBACK)
+
+
 def _file_key(f: dict) -> str:
     loc = f.get("location") or {}
     if isinstance(loc, dict):
@@ -34,6 +87,83 @@ def _file_key(f: dict) -> str:
 
 def _is_open(f: dict) -> bool:
     return f.get("status", "found") not in _RESOLVED_STATUSES
+
+
+# ---------------------------------------------------------------------------
+# Chao1 — 未発見の制約数を推定
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# δ_repo — repository-level information loss
+# ---------------------------------------------------------------------------
+
+# Health barometer thresholds (δ_repo → emoji)
+# Calibrated against: 8 positive cells, median I=0.4055, max I=3.4012
+_HEALTH_THRESHOLDS: list[tuple[float, str, str]] = [
+    (0.0,  "🟢", "excellent"),   # δ=0: no active findings with information loss
+    (1.0,  "🟡", "good"),        # δ<1: ~2 low-I findings
+    (3.0,  "🟠", "moderate"),    # δ<3: several findings, manageable
+    (8.0,  "🔴", "poor"),        # δ<8: significant hidden information debt
+    (float("inf"), "💀", "critical"),  # δ≥8: severe
+]
+
+
+def compute_delta_repo(findings: list[dict]) -> dict:
+    """Compute δ_repo: total information loss from active findings.
+
+    δ_repo = Σ I_base(pattern, severity)  for each active finding
+    health = e^{-δ_repo}
+
+    Returns:
+        delta_repo: total information loss in nats
+        health_factor: e^{-δ_repo} ∈ (0, 1]
+        health_emoji: barometer emoji
+        health_label: "excellent" | "good" | "moderate" | "poor" | "critical"
+        active_count: number of active findings contributing to δ
+        breakdown: per-pattern subtotals
+    """
+    active = [f for f in findings if _is_open(f)]
+
+    breakdown: dict[str, dict] = {}
+    delta_total = 0.0
+
+    for f in active:
+        pattern = (f.get("pattern") or "").strip()
+        severity = (f.get("severity") or "medium").lower()
+        i_val = i_base_lookup(pattern, severity)
+        delta_total += i_val
+
+        if pattern not in breakdown:
+            breakdown[pattern] = {"count": 0, "delta": 0.0, "i_values": []}
+        breakdown[pattern]["count"] += 1
+        breakdown[pattern]["delta"] = round(breakdown[pattern]["delta"] + i_val, 4)
+        breakdown[pattern]["i_values"].append(i_val)
+
+    health = math.exp(-delta_total)
+
+    emoji, label = "🟢", "excellent"
+    for threshold, e, l in _HEALTH_THRESHOLDS:
+        if delta_total <= threshold:
+            emoji, label = e, l
+            break
+
+    return {
+        "delta_repo": round(delta_total, 4),
+        "health_factor": round(health, 4),
+        "health_emoji": emoji,
+        "health_label": label,
+        "active_count": len(active),
+        "breakdown": breakdown,
+    }
+
+
+def health_barometer(delta_repo: float) -> tuple[str, str]:
+    """Return (emoji, label) for a given δ_repo value."""
+    for threshold, emoji, label in _HEALTH_THRESHOLDS:
+        if delta_repo <= threshold:
+            return emoji, label
+    return "💀", "critical"
 
 
 # ---------------------------------------------------------------------------

@@ -1526,6 +1526,18 @@ def cmd_scan(args):
         if verification_meta:
             print(f"🔍 検証結果: {verification_meta.get('confirmed', 0)}件確認、{verification_meta.get('rejected', 0)}件却下", file=sys.stderr)
 
+        # δ_repo health barometer
+        try:
+            from info_theory import compute_delta_repo
+            from findings import list_findings as _list_findings
+            all_findings = _list_findings(repo_path)
+            delta = compute_delta_repo(all_findings)
+            print(f"{delta['health_emoji']} 健全性: δ={delta['delta_repo']:.2f} nats "
+                  f"(e⁻ᵟ={delta['health_factor']:.3f}, {delta['health_label']})",
+                  file=sys.stderr)
+        except Exception:
+            pass
+
         print("═" * 70 + "\n", file=sys.stderr)
 
     # debt_budget gate (CI integration)
