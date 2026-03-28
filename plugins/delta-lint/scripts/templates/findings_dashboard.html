@@ -127,10 +127,11 @@ tailwind.config = {
       <div class="text-[11px] text-txt-muted font-semibold mt-0.5">スキャン深度</div>
       <div class="text-[10px] text-txt-dim mt-0.5">コマンド一覧を参照</div>
     </div>
-    <div class="bg-surface-2 border border-surface-3 rounded-lg px-4 py-2.5 min-w-[120px] text-center" title="δ_repo = Σ I(pattern,severity) — 情報理論ベースの健全性指標">
+    <div class="bg-surface-2 border border-surface-3 rounded-lg px-4 py-2.5 min-w-[140px] text-center" title="δ_repo = Σ I(pattern,severity) — 情報理論ベースの健全性指標&#10;δ_cal: キャリブレーション済みセルのみ&#10;未校正: fallback値を使用したパターンの割合">
       <div class="text-2xl font-bold">$health_emoji</div>
       <div class="text-[11px] text-txt-muted font-semibold mt-0.5">健全性 <span class="text-[10px] font-normal">(δ=$delta_repo)</span></div>
       <div class="text-[10px] text-txt-dim mt-0.5">$health_label — e<sup>-δ</sup>=$health_factor</div>
+      <div class="text-[10px] text-txt-dim mt-0.5">δ<sub>cal</sub>=$delta_repo_calibrated<span style="opacity:0.6"> / 未校正 $delta_fallback_pct%</span></div>
     </div>
   </div>
 

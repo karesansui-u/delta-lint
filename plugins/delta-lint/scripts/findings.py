@@ -1798,7 +1798,8 @@ def generate_dashboard(
             "unseen_estimate": 0, "ci_lower": len(findings), "ci_upper": len(findings),
             "discovery_trend": "insufficient_data", "scans": 0,
         }
-        delta = {"delta_repo": 0.0, "health_factor": 1.0, "health_emoji": "🟢",
+        delta = {"delta_repo": 0.0, "delta_repo_calibrated": 0.0,
+                 "health_factor": 1.0, "health_emoji": "🟢",
                  "health_label": "excellent", "active_count": 0, "breakdown": {}}
 
     # Build custom scoring badge for dashboard header
@@ -1919,6 +1920,10 @@ def generate_dashboard(
         coverage_json=json.dumps(coverage, ensure_ascii=False),
         coverage_matrix_json=json.dumps(compute_coverage_matrix(base_path), ensure_ascii=False),
         delta_repo=delta["delta_repo"],
+        delta_repo_calibrated=delta["delta_repo_calibrated"],
+        delta_fallback_pct=round(
+            (delta["delta_repo"] - delta["delta_repo_calibrated"]) / delta["delta_repo"] * 100, 1
+        ) if delta["delta_repo"] > 0 else 0,
         health_factor=delta["health_factor"],
         health_emoji=delta["health_emoji"],
         health_label=delta["health_label"],
