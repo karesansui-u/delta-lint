@@ -3,7 +3,7 @@ name: delta-review
 user-invocable: false
 description: >
   Pre-implementation impact analysis for code changes. Has two modes:
-  (1) FULL MODE - explicit "delta review", "delta plan", "影響範囲チェック" etc.
+  (1) FULL MODE - explicit "delta review", "delta plan", "影響範囲チェック", "リリース前チェック", "商用リリース前確認" etc.
   (2) AUTO MODE - triggers when user proposes implementation ("〇〇を実装して",
   "〇〇を追加したい", "〇〇を修正して", "これ実装できる？", "こういう機能作りたい",
   "こういう修正どうなる？", "気をつけたほうがいいことは？") AND .delta-lint/ exists.
