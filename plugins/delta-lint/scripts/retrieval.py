@@ -663,6 +663,8 @@ def find_hook_dependencies(
     repo_path: str,
     target_files: list[str],
     architectures: list[str] | None = None,
+    *,
+    max_hook_files: int = 500,
 ) -> list[HookDep]:
     """Find dependencies between files via framework hooks/events.
 
@@ -715,15 +717,15 @@ def find_hook_dependencies(
                     continue
                 project_files.append(rel)
 
-        # Cap to avoid scanning massive repos
-        if len(project_files) > 500:
+        # Cap to avoid scanning massive repos (configurable via max_hook_files)
+        if len(project_files) > max_hook_files:
             # Prioritize files near targets
             target_dirs = {str(Path(t).parent) for t in target_files}
             near = [f for f in project_files
                     if str(Path(f).parent) in target_dirs]
             far = [f for f in project_files
                    if str(Path(f).parent) not in target_dirs]
-            project_files = near + far[:500 - len(near)]
+            project_files = near + far[:max_hook_files - len(near)]
 
         # Index hooks in all project files
         for fpath in project_files:
@@ -800,6 +802,109 @@ def find_hook_dependencies(
                             ))
 
     return deps
+
+
+def save_hook_graph(
+    repo_path: str,
+    architectures: list[str] | None = None,
+    *,
+    max_hook_files: int = 500,
+) -> Path | None:
+    """Persist the full hook dependency graph to .delta-lint/hook_graph.json.
+
+    Builds a complete hook index (not just target-scoped) and saves it.
+    Returns the path to the saved file, or None if no hooks found.
+    """
+    if architectures is None:
+        architectures = detect_architecture(repo_path)
+    if not architectures:
+        return None
+
+    patterns = _load_arch_patterns()
+    repo = Path(repo_path)
+
+    # Build full hook index across all project files
+    full_index: dict[str, dict] = {}  # hook_name -> {sources: [...], sinks: [...], pattern, arch}
+
+    for arch_name in architectures:
+        arch = patterns.get(arch_name)
+        if not arch:
+            continue
+        exts = set(arch.get("file_extensions", []))
+        dep_patterns = arch.get("dependency_patterns", [])
+        if not dep_patterns:
+            continue
+
+        project_files: list[str] = []
+        for ext in exts:
+            for p in repo.rglob(f"*{ext}"):
+                rel = str(p.relative_to(repo))
+                if any(skip in rel for skip in [
+                    "node_modules", "vendor", ".git", "__pycache__",
+                    "wp-admin", "wp-includes", ".delta-lint",
+                ]):
+                    continue
+                project_files.append(rel)
+
+        if len(project_files) > max_hook_files:
+            project_files = project_files[:max_hook_files]
+
+        for fpath in project_files:
+            full = repo / fpath
+            try:
+                content = full.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+
+            for dp in dep_patterns:
+                for m in re.finditer(dp["source"], content):
+                    hook = m.group(1) if m.lastindex else m.group(0)
+                    if hook not in full_index:
+                        full_index[hook] = {
+                            "sources": [], "sinks": [],
+                            "pattern": dp["name"], "architecture": arch_name,
+                        }
+                    entry = {"file": fpath, "line": content[:m.start()].count("\n") + 1}
+                    if entry not in full_index[hook]["sources"]:
+                        full_index[hook]["sources"].append(entry)
+
+                for m in re.finditer(dp["sink"], content):
+                    hook = m.group(1) if m.lastindex else m.group(0)
+                    if hook not in full_index:
+                        full_index[hook] = {
+                            "sources": [], "sinks": [],
+                            "pattern": dp["name"], "architecture": arch_name,
+                        }
+                    entry = {"file": fpath, "line": content[:m.start()].count("\n") + 1}
+                    if entry not in full_index[hook]["sinks"]:
+                        full_index[hook]["sinks"].append(entry)
+
+    if not full_index:
+        return None
+
+    # Summary stats
+    stats = {
+        "total_hooks": len(full_index),
+        "total_sources": sum(len(v["sources"]) for v in full_index.values()),
+        "total_sinks": sum(len(v["sinks"]) for v in full_index.values()),
+        "architectures": architectures,
+    }
+
+    graph_data = {
+        "_doc": "Auto-generated hook dependency graph. Do not edit manually. Regenerated on each scan.",
+        "generated_at": __import__("datetime").datetime.now().isoformat(),
+        "stats": stats,
+        "hooks": full_index,
+    }
+
+    delta_dir = repo / ".delta-lint"
+    delta_dir.mkdir(exist_ok=True)
+    graph_path = delta_dir / "hook_graph.json"
+    graph_path.write_text(
+        json.dumps(graph_data, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return graph_path
 
 
 # ---------------------------------------------------------------------------
@@ -1259,12 +1364,22 @@ def build_context(
     # Step 3: Architecture-aware hook dependencies
     # Discovers connections via framework hooks/events (WordPress actions,
     # Django signals, Rails callbacks, etc.) that import analysis misses.
+    _max_hook_files = int(rc.get("max_hook_files", 500))
     try:
         archs = detect_architecture(repo_path)
         if archs:
             hook_deps = find_hook_dependencies(
                 repo_path, changed_files, architectures=archs,
+                max_hook_files=_max_hook_files,
             )
+            # Persist full hook graph to .delta-lint/hook_graph.json
+            try:
+                save_hook_graph(
+                    repo_path, architectures=archs,
+                    max_hook_files=_max_hook_files,
+                )
+            except Exception:
+                pass  # Graph persistence is best-effort
             for hd in hook_deps:
                 dep_file = hd.sink_file if hd.source_file in changed_files else hd.source_file
                 if dep_file in seen_deps:
@@ -1327,7 +1442,54 @@ def build_context(
             ))
             total_chars += len(content)
 
+    # Step 5: Critical paths — warn when changes touch high-risk areas
+    try:
+        critical_alerts = _check_critical_paths(repo_path, ctx)
+        ctx.warnings.extend(critical_alerts)
+    except Exception:
+        pass  # Critical paths check is best-effort
+
     return ctx
+
+
+def _load_critical_paths(repo_path: str) -> list[dict] | None:
+    """Load .delta-lint/critical_paths.yml if it exists."""
+    cp_path = Path(repo_path) / ".delta-lint" / "critical_paths.yml"
+    if not cp_path.exists():
+        return None
+    try:
+        import yaml
+        return yaml.safe_load(cp_path.read_text(encoding="utf-8")).get("paths", [])
+    except Exception:
+        return None
+
+
+def _check_critical_paths(repo_path: str, ctx: ModuleContext) -> list[str]:
+    """Check if any files in the context match critical path patterns.
+
+    Returns a list of warning strings for matched critical paths.
+    """
+    paths_config = _load_critical_paths(repo_path)
+    if not paths_config:
+        return []
+
+    import fnmatch
+    all_files = [f.path for f in ctx.target_files + ctx.dep_files]
+    alerts: list[str] = []
+
+    for entry in paths_config:
+        pattern = entry.get("pattern", "")
+        reason = entry.get("reason", "")
+        severity = entry.get("severity", "high")
+        for fpath in all_files:
+            if fnmatch.fnmatch(fpath, pattern) or pattern in fpath:
+                prefix = "[CRITICAL]" if severity == "critical" else "[HIGH-RISK]"
+                alerts.append(
+                    f"{prefix} {fpath} matches critical path '{pattern}': {reason}"
+                )
+                break  # One alert per pattern is enough
+
+    return alerts
 
 
 def get_diff_content(repo_path: str, diff_target: str = "HEAD") -> str:

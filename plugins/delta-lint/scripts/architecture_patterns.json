@@ -17,6 +17,24 @@
         "description": "apply_filters('hook', ...) -> add_filter('hook', callback)",
         "source": "apply_filters\\s*\\(\\s*['\"]([^'\"]+)['\"]",
         "sink": "add_filter\\s*\\(\\s*['\"]([^'\"]+)['\"]"
+      },
+      {
+        "name": "wp_schedule",
+        "description": "wp_schedule_event() -> add_action('hook', callback) for cron",
+        "source": "wp_schedule_event\\s*\\([^,]+,[^,]+,\\s*['\"]([^'\"]+)['\"]",
+        "sink": "add_action\\s*\\(\\s*['\"]([^'\"]+)['\"]"
+      },
+      {
+        "name": "cron_require",
+        "description": "Cron scripts that require wp-config.php or plugin files",
+        "source": "require(?:_once)?\\s*\\(?\\s*['\"]([^'\"]*wp-config\\.php)['\"]",
+        "sink": "require(?:_once)?\\s*\\(?\\s*['\"]([^'\"]*wp-config\\.php)['\"]"
+      },
+      {
+        "name": "cron_function_call",
+        "description": "Cron scripts calling plugin functions (e.g., ClassName::method())",
+        "source": "([A-Z]\\w+)::(\\w+)\\s*\\(",
+        "sink": "class\\s+([A-Z]\\w+)"
       }
     ]
   },
