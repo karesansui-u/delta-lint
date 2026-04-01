@@ -403,6 +403,15 @@ def _auto_discover_docs(repo_path: str) -> list[str]:
             if rel not in found:
                 found.append(rel)
 
+    # Auto-discover .delta-lint/knowledge/**/*.md
+    # Project-specific rules, past bugs, integration notes — written by the team.
+    knowledge_dir = repo / ".delta-lint" / "knowledge"
+    if knowledge_dir.is_dir():
+        for md in sorted(knowledge_dir.rglob("*.md")):
+            rel = str(md.relative_to(repo))
+            if rel not in found:
+                found.append(rel)
+
     return found
 
 
