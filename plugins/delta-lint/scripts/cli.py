@@ -711,9 +711,9 @@ def main():
              "or codex-cli (OpenAI Codex CLI). Falls back to api if CLI not available.",
     )
     scan_parser.add_argument(
-        "--lang", default="en",
+        "--lang", default="ja",
         choices=["en", "ja"],
-        help="Output language for finding descriptions (default: en). "
+        help="Output language for finding descriptions (default: ja). "
              "Controls contradiction, impact, and internal_evidence fields.",
     )
     scan_parser.add_argument(

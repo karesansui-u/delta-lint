@@ -1776,7 +1776,7 @@ if __name__ == "__main__":
     parser.add_argument("--parallel", type=int, default=1, help="Concurrent scans (default: 1, recommended max: 10)")
     parser.add_argument("--visualize", action="store_true", default=True, help="Generate HTML heatmap after scan (default: on)")
     parser.add_argument("--no-visualize", action="store_true", help="Disable HTML heatmap generation")
-    parser.add_argument("--lang", default="en", choices=["en", "ja"], help="Output language for findings (default: en)")
+    parser.add_argument("--lang", default="ja", choices=["en", "ja"], help="Output language for findings (default: ja)")
     parser.add_argument("--max-wall-time", type=int, default=2400, help="Max wall-clock seconds before graceful stop (default: 2400 = 40min)")
     parser.add_argument("--structure-only", action="store_true", help="Run only structure analysis (Step 0), then exit")
 
