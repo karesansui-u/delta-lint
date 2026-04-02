@@ -62,7 +62,7 @@ Only treat it as an error if stderr contains a Python traceback or "Error:" pref
 2. User mentions stress/lens stress/ストレステスト/フルスキャン/地雷マップ作って/地雷マップ更新/`--lens stress` → **Stress Test**（バックグラウンド実行）
 3. User says "delta-scan" or just `/delta-scan`（stress 以外） → **Scan**（初回なら auto-init 後に scan）
 4. User mentions PR/プルリク/レビュー ("PRレビュー", "PR scan", "review PR", "プルリクスキャン", "PRチェック", "presman-lint") → **PR Scan** (= Scan with `--scope pr`)
-4a. User specifies branch comparison ("AとBの差分", "ブランチ比較", "test-2023とmain-2023の差分" etc.) → **Branch Diff Scan**: parse branch names A and B from message, run `--scope pr --base origin/<B>` from branch A. If not on branch A, inform user to checkout first or confirm which branch is the base.
+4a. User specifies branch comparison ("AとBの差分", "ブランチ比較", "test-2023とmain-2023の差分" etc.) → **Branch Diff Scan**: parse branch names A and B from message, run `--scope pr --base origin/<B> --profile strict` from branch A. If not on branch A, inform user to checkout first or confirm which branch is the base. Use `strict` profile by default (deep + semantic) unless user explicitly overrides.
 4b. User says "リリース後確認", "チェリーピック確認", "チェリーピック漏れ", "リリースミスチェック" → **Release Verify**: ask for release branch names if not provided (e.g. `release/test-2023/KINGSMAN-xxx` and `release/main-2023/KINGSMAN-xxx`), then run Branch Diff Scan between them and report missing commits.
 5. User mentions a `dl-` prefixed ID (e.g. "dl-65edfb5a 調べて") → **Investigate Finding**
 6. User says "suppress" with a number → **Suppress Add**
