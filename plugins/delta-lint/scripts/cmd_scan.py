@@ -1424,8 +1424,8 @@ def cmd_scan(args):
                     definite_bugs.append(f)
         definite_count = len(definite_bugs)
 
-        # Autonomous action 1: Auto-fix definite bugs (if not already done)
-        if definite_count > 0 and not getattr(args, 'autofix', False):
+        # Autonomous action 1: Auto-fix definite bugs (only when --autofix is explicitly passed)
+        if definite_count > 0 and getattr(args, 'autofix', False):
             # Auto-generate and apply fixes for definite bugs
             try:
                 from fixgen import generate_fixes, apply_fixes_locally
@@ -1510,7 +1510,7 @@ def cmd_scan(args):
 
         if definite_count > 0:
             print(f"✅ 確定バグ: {definite_count}件（2段階検証済み）", file=sys.stderr)
-            if not getattr(args, 'autofix', False):
+            if getattr(args, 'autofix', False):
                 print("   → 自動修正を試行しました（上記を確認してください）", file=sys.stderr)
         if high_count > definite_count:
             print(f"⚠ 高重要度: {high_count - definite_count}件", file=sys.stderr)
