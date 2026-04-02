@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "構造矛盾検出器 — モジュール間の暗黙の前提の食い違いを LLM で検出。設計レベルの不整合にフォーカス（スタイルLintや単純バグではない）。",
-    "version": "0.1.11"
+    "version": "0.1.12"
   },
   "plugins": [
     {
       "name": "delta-lint",
       "source": "./plugins/delta-lint",
       "description": "ソースコード間の構造矛盾（暗黙の前提の不整合）をLLM分析で検出するツール。scan / suppress / findings / stress-test。必要に応じて修正〜PR まで。",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "category": "code-quality",
       "tags": ["linter", "agent", "code-review", "structural-contradiction"]
     }
