@@ -1,19 +1,10 @@
 """cmd_scan – scan commands extracted from cli.py for modularity."""
 
-import os
 import sys
-from datetime import date
 from pathlib import Path
 
 from retrieval import get_changed_files, filter_source_files, build_context
 from output import print_results, save_log
-from suppress import (
-    SuppressEntry,
-    compute_finding_hash,
-    compute_code_hash,
-    load_suppressions,
-    save_suppressions,
-)
 from cli_utils import (
     _check_environment,
     _adaptive_since,
@@ -1453,55 +1444,7 @@ def cmd_scan(args):
                 if args.verbose:
                     print(f"   ⚠ 自動修正の実行中にエラー: {e}", file=sys.stderr)
 
-        # Autonomous action 2: Auto-suppress low severity findings (background)
         auto_suppressed_count = 0
-        if len(result.filtered) > 0:
-            # Auto-suppress low severity findings that are unlikely to be fixed
-            try:
-
-                existing = load_suppressions(repo_path)
-                new_suppressions = []
-                for f in result.filtered:
-                    # Only auto-suppress if certainty is uncertain and severity is low
-                    tax = f.get("taxonomies", {})
-                    certainty = tax.get("certainty", "uncertain")
-                    sev = f.get("severity", "low").lower()
-                    if sev == "low" and certainty == "uncertain":
-                        fhash = compute_finding_hash(f)
-                        # Check if not already suppressed
-                        if not any(e.finding_hash == fhash for e in existing + new_suppressions):
-                            loc = f.get("location", {})
-                            _file_a = loc.get("file_a", "")
-                            _file_b = loc.get("file_b", "")
-                            _line_a = None
-                            import re as _re
-                            _m = _re.search(r'line\s*~?(\d+)', loc.get('detail_a', ''))
-                            if _m:
-                                _line_a = int(_m.group(1))
-                            _pattern = str(f.get("pattern", "") or "")
-                            _files = sorted([_file_a, _file_b])
-                            _author = os.environ.get(
-                                "USER", os.environ.get("USERNAME", "delta-lint-auto")
-                            )
-                            entry = SuppressEntry(
-                                id=fhash,
-                                finding_hash=fhash,
-                                pattern=_pattern,
-                                files=_files,
-                                code_hash=compute_code_hash(repo_path, _file_a, _line_a),
-                                why="自動suppress: 低重要度かつ不確実なfinding",
-                                why_type="technical",
-                                date=str(date.today()),
-                                author=_author,
-                            )
-                            new_suppressions.append(entry)
-                            auto_suppressed_count += 1
-                if new_suppressions:
-                    save_suppressions(repo_path, existing + new_suppressions)
-                    if args.verbose:
-                        print(f"   📝 {auto_suppressed_count}件の低重要度 findings を自動suppressしました", file=sys.stderr)
-            except Exception:
-                pass  # Non-critical — don't fail scan for auto-suppress errors
 
         # Print final summary report
         print("\n" + "═" * 70, file=sys.stderr)
