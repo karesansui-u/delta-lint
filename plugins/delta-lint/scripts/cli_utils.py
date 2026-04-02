@@ -226,6 +226,17 @@ def _check_environment(backend: str = "cli", verbose: bool = False) -> dict:
         )
         degraded = True
 
+    if backend == "codex-cli":
+        codex_available = bool(shutil.which("codex"))
+        if not codex_available:
+            warnings.append(
+                "codex CLI not available. "
+                "Install: npm install -g @openai/codex"
+            )
+            degraded = True
+        return {"backend": resolved_backend, "warnings": warnings, "degraded": degraded,
+                "gh_available": bool(shutil.which("gh"))}
+
     claude_available = bool(shutil.which("claude"))
     if not claude_available:
         if shutil.which("npm"):

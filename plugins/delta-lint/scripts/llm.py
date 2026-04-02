@@ -2,6 +2,7 @@
 
 All detection/verification/fix-generation calls go through call_llm().
 Backends: ClaudeCLI ($0, subscription) → AnthropicAPI (SDK) → HTTPFallback (requests).
+         CodexCLI (OpenAI Codex CLI, per-user opt-in via ~/.delta-lint/config.json).
 
 Thread-safe: safe to call from ThreadPoolExecutor (deep_verifier).
 """
@@ -11,6 +12,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from typing import Protocol
 
@@ -55,6 +57,35 @@ class ClaudeCLI:
         if result.returncode != 0:
             raise RuntimeError(f"claude -p failed: {result.stderr[:300]}")
         return result.stdout
+
+
+class CodexCLI:
+    """codex exec (OpenAI Codex CLI, per-user opt-in). Reads model from ~/.codex/config.toml."""
+
+    def complete(self, system: str, user: str, model: str, timeout: int,
+                 temperature: float = 0.0) -> str:
+        prompt = system + "\n\n" + user
+        with tempfile.NamedTemporaryFile(mode="r", suffix=".txt", delete=False) as tmp:
+            tmp_path = tmp.name
+        try:
+            result = subprocess.run(
+                ["codex", "exec", "--sandbox", "read-only",
+                 "--output-last-message", tmp_path, "-"],
+                input=prompt,
+                capture_output=True, text=True, timeout=timeout,
+            )
+            with open(tmp_path) as f:
+                response = f.read()
+            if response.strip():
+                return response
+            if result.returncode != 0:
+                raise RuntimeError(f"codex exec failed: {result.stderr[:300]}")
+            return response
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 class AnthropicAPI:
@@ -135,6 +166,12 @@ def _cli_available() -> bool:
     return cli_available()
 
 
+def _codex_cli_available() -> bool:
+    """Check if codex CLI is available on PATH."""
+    import shutil
+    return bool(shutil.which("codex"))
+
+
 def _sdk_available() -> bool:
     """Check if anthropic SDK is importable."""
     try:
@@ -161,10 +198,19 @@ def get_backend(preference: str = "auto") -> LLMBackend:
     """Select LLM backend.
 
     preference:
-      "auto" — CLI available → ClaudeCLI, else AnthropicAPI, else HTTPFallback
-      "cli"  — ClaudeCLI (fail if unavailable)
-      "api"  — AnthropicAPI (require SDK or fall back to HTTP)
+      "auto"      — CLI available → ClaudeCLI, else AnthropicAPI, else HTTPFallback
+      "cli"       — ClaudeCLI (fail if unavailable)
+      "api"       — AnthropicAPI (require SDK or fall back to HTTP)
+      "codex-cli" — CodexCLI (fail if codex CLI unavailable)
     """
+    if preference == "codex-cli":
+        if not _codex_cli_available():
+            raise RuntimeError(
+                "codex CLI not available on PATH. "
+                "Install: npm install -g @openai/codex"
+            )
+        return CodexCLI()
+
     if preference == "cli":
         if not _cli_available():
             raise RuntimeError("claude CLI not available on PATH")

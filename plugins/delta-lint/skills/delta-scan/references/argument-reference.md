@@ -20,7 +20,7 @@
 | `--verbose` | false | Detailed progress |
 | `--log-dir` | `.delta-lint/` | Log directory |
 | `--semantic` | false | Enable semantic search beyond import-based 1-hop |
-| `--backend` | `cli` | LLM backend: `cli` (claude -p, $0) or `api` (SDK, pay-per-use) |
+| `--backend` | `cli` | LLM backend: `cli` (claude -p, $0), `api` (Anthropic SDK), or `codex-cli` (OpenAI Codex CLI). Per-user default via `~/.delta-lint/config.json` → `{"backend": "codex-cli"}` |
 | `--lang` | `en` | Output language for findings: `en` (English) or `ja` (Japanese) |
 
 ## Suppress
