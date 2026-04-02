@@ -1289,7 +1289,7 @@ def cmd_scan(args):
             print("\n⚠ No fixes could be generated.", file=sys.stderr)
 
     # Step 6: Save log
-    log_dir = args.log_dir or str(Path(repo_path) / ".delta-lint")
+    log_dir = args.log_dir or str(Path(repo_path) / ".delta-lint" / "scan-logs")
     context_meta = {
         "repo": repo_name,
         "repo_path": repo_path,
