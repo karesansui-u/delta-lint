@@ -1770,7 +1770,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--repo", required=True, help="Repository path")
     parser.add_argument("--n", type=int, default=0, help="Number of modifications (0=auto-determine from repo size)")
-    parser.add_argument("--backend", default="cli", choices=["cli", "api"], help="LLM backend (default: cli = $0)")
+    parser.add_argument("--backend", default="cli", choices=["cli", "api", "codex-cli"], help="LLM backend (default: cli = $0)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Print progress to stderr")
     parser.add_argument("--output-dir", default=None, help="Output directory")
     parser.add_argument("--parallel", type=int, default=1, help="Concurrent scans (default: 1, recommended max: 10)")

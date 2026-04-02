@@ -706,9 +706,9 @@ def main():
     )
     scan_parser.add_argument(
         "--backend", default="cli",
-        choices=["cli", "api"],
-        help="LLM backend: cli (claude -p, $0, default) or api (SDK, pay-per-use). "
-             "Falls back to api if CLI not available.",
+        choices=["cli", "api", "codex-cli"],
+        help="LLM backend: cli (claude -p, $0, default), api (SDK, pay-per-use), "
+             "or codex-cli (OpenAI Codex CLI). Falls back to api if CLI not available.",
     )
     scan_parser.add_argument(
         "--lang", default="en",
@@ -931,7 +931,7 @@ def main():
     fv = find_sub.add_parser("verify-top", help="Re-verify top 1/3 findings by priority score")
     fv.add_argument("--repo", default=".", help="Base path for .delta-lint/findings/")
     fv.add_argument("--model", default="claude-sonnet-4-20250514", help="LLM model for verification")
-    fv.add_argument("--backend", default="cli", choices=["cli", "api"], help="LLM backend")
+    fv.add_argument("--backend", default="cli", choices=["cli", "api", "codex-cli"], help="LLM backend")
 
     # findings phase1-export (δ_repo + Chao1 CSV for empirical validation)
     fp1 = find_sub.add_parser(
@@ -1043,8 +1043,8 @@ def main():
         help="LLM model for fix generation",
     )
     dl_parser.add_argument(
-        "--backend", default="cli", choices=["cli", "api"],
-        help="LLM backend: cli ($0) or api (pay-per-use)",
+        "--backend", default="cli", choices=["cli", "api", "codex-cli"],
+        help="LLM backend: cli ($0), api (pay-per-use), or codex-cli (OpenAI Codex)",
     )
     dl_parser.add_argument(
         "--base-branch", default=None,

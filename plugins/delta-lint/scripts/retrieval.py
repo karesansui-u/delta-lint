@@ -580,6 +580,27 @@ def _load_arch_patterns() -> dict:
     return _ARCH_PATTERNS_CACHE
 
 
+def _hook_graph_is_fresh(repo_path: str) -> bool:
+    """Return True if .delta-lint/hook_graph.json is newer than the last git commit."""
+    import time
+    graph_path = Path(repo_path) / ".delta-lint" / "hook_graph.json"
+    if not graph_path.exists():
+        return False
+    graph_mtime = graph_path.stat().st_mtime
+    try:
+        result = subprocess.run(
+            ["git", "log", "-1", "--format=%ct"],
+            cwd=repo_path, capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            last_commit_ts = int(result.stdout.strip())
+            return graph_mtime > last_commit_ts
+    except Exception:
+        pass
+    # Fallback: fresh within 30 minutes
+    return time.time() - graph_mtime < 1800
+
+
 def detect_architecture(repo_path: str) -> list[str]:
     """Detect which architectures/frameworks this repo uses.
 
@@ -684,6 +705,48 @@ def find_hook_dependencies(
         architectures = detect_architecture(repo_path)
     if not architectures:
         return []
+
+    # --- Cache check: load from hook_graph.json if fresh ---
+    graph_path = Path(repo_path) / ".delta-lint" / "hook_graph.json"
+    if _hook_graph_is_fresh(repo_path):
+        try:
+            cached_data = json.loads(graph_path.read_text(encoding="utf-8"))
+            cached_hooks = cached_data.get("hooks", {})
+            deps_cached: list[HookDep] = []
+            seen_cached: set[tuple[str, str, str]] = set()
+            for hook_name, hook_data in cached_hooks.items():
+                pattern_name = hook_data.get("pattern", "")
+                arch_name = hook_data.get("architecture", "")
+                source_set = {e["file"] for e in hook_data.get("sources", [])}
+                sink_set = {e["file"] for e in hook_data.get("sinks", [])}
+                for target in target_files:
+                    if target in source_set:
+                        for sink in sink_set:
+                            if sink == target:
+                                continue
+                            key = (target, sink, hook_name)
+                            if key not in seen_cached:
+                                seen_cached.add(key)
+                                deps_cached.append(HookDep(
+                                    source_file=target, sink_file=sink,
+                                    hook_name=hook_name, pattern_name=pattern_name,
+                                    architecture=arch_name,
+                                ))
+                    if target in sink_set:
+                        for src in source_set:
+                            if src == target:
+                                continue
+                            key = (src, target, hook_name)
+                            if key not in seen_cached:
+                                seen_cached.add(key)
+                                deps_cached.append(HookDep(
+                                    source_file=src, sink_file=target,
+                                    hook_name=hook_name, pattern_name=pattern_name,
+                                    architecture=arch_name,
+                                ))
+            return deps_cached
+        except Exception:
+            pass  # Fall through to fresh build
 
     patterns = _load_arch_patterns()
     repo = Path(repo_path)
@@ -819,6 +882,10 @@ def save_hook_graph(
         architectures = detect_architecture(repo_path)
     if not architectures:
         return None
+
+    # Skip rebuild if cache is still fresh
+    if _hook_graph_is_fresh(repo_path):
+        return Path(repo_path) / ".delta-lint" / "hook_graph.json"
 
     patterns = _load_arch_patterns()
     repo = Path(repo_path)

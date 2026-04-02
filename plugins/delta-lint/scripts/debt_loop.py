@@ -690,8 +690,8 @@ def main():
                         help="GitHub Issue number to fetch and fix")
     parser.add_argument("--model", default="claude-sonnet-4-20250514",
                         help="LLM model for fix generation")
-    parser.add_argument("--backend", default="cli", choices=["cli", "api"],
-                        help="LLM backend: cli ($0) or api (pay-per-use)")
+    parser.add_argument("--backend", default="cli", choices=["cli", "api", "codex-cli"],
+                        help="LLM backend: cli ($0), api (pay-per-use), or codex-cli (OpenAI Codex)")
     parser.add_argument("--base-branch", default=None,
                         help="Base branch for fix branches (default: current branch)")
     parser.add_argument("--status", default="found,confirmed",
