@@ -97,10 +97,9 @@ scanner.scan()  ← 6パターン検出パイプライン
 
 この技術は、下記の論文を応用しています。
 
-> [Structural Collapse as Information Loss: The Exponential Decay Mechanism under Accumulating Constraints](https://zenodo.org/records/19254667)（[PDF](assets/Information_loss.pdf)）<br>
-> ※東大松尾研OBの方に査読してもらいました
+> [構造持続の最小形式 — 制約蓄積による構造損失の最小形式 —](https://zenodo.org/records/19584667)<br>
 
-特定の条件を満たす構造は、構造矛盾によって急激に崩壊するという理論です。ソフトウェア本体を構造物と捉えて、矛盾があったときにバグとして炙り出てくるという理論応用になります。
+ソフトウェア本体を構造物と捉えて、前提の仕様やコードの矛盾をバグとして炙り出すという理論応用になります。
 
 LLM 11モデル・5ベンダーでの実験と、SAT問題での数学的検証により、構造矛盾が蓄積するとシステムの健全性は**指数関数的に**崩壊する（足し算ではなく掛け算）ことを確認しています。
 
