@@ -207,7 +207,8 @@ def _print_batch_progress(
 # Environment pre-check — auto-install & guided setup
 # ---------------------------------------------------------------------------
 
-def _check_environment(backend: str = "cli", verbose: bool = False) -> dict:
+def _check_environment(backend: str = "cli", verbose: bool = False,
+                       dry_run: bool = False) -> dict:
     """Check all external dependencies and attempt auto-install if missing."""
     import shutil
     import subprocess as _sp
@@ -225,6 +226,12 @@ def _check_environment(backend: str = "cli", verbose: bool = False) -> dict:
             "Ubuntu: sudo apt install git"
         )
         degraded = True
+
+    if dry_run:
+        for w in warnings:
+            print(f"  ⚠ {w}", file=sys.stderr)
+        return {"backend": resolved_backend, "warnings": warnings, "degraded": degraded,
+                "gh_available": bool(shutil.which("gh"))}
 
     if backend == "codex-cli":
         codex_available = bool(shutil.which("codex"))

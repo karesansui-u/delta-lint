@@ -25,6 +25,18 @@ DEFAULT_MODEL = "claude-sonnet-4-20250514"
 DEFAULT_TIMEOUT = 600  # seconds
 
 
+AUTH_FAILURE_MARKERS = (
+    "Not logged in",
+    "Please run /login",
+    "Invalid API key",
+    "authentication failed",
+)
+
+
+def _looks_like_auth_failure(text: str) -> bool:
+    return any(marker.lower() in text.lower() for marker in AUTH_FAILURE_MARKERS)
+
+
 # ---------------------------------------------------------------------------
 # Backend protocol
 # ---------------------------------------------------------------------------
@@ -51,6 +63,9 @@ class ClaudeCLI:
             input=prompt,
             capture_output=True, text=True, timeout=timeout,
         )
+        combined_output = f"{result.stdout}\n{result.stderr}"
+        if _looks_like_auth_failure(combined_output):
+            raise RuntimeError(f"claude -p authentication failed: {combined_output[:300]}")
         # Hook failures (e.g. SessionEnd) cause non-zero exit even when output is valid
         if result.stdout.strip():
             return result.stdout

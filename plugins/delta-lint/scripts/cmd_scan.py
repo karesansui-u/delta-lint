@@ -305,6 +305,7 @@ def cmd_scan(args):
     env = _check_environment(
         backend=getattr(args, "backend", "cli"),
         verbose=getattr(args, "verbose", False),
+        dry_run=getattr(args, "dry_run", False),
     )
     # Apply resolved backend (may have changed if claude CLI unavailable)
     if hasattr(args, "backend"):
@@ -389,6 +390,8 @@ def cmd_scan(args):
                 cmd.append("--no-verify")
             if getattr(args, 'autofix', False):
                 cmd.append("--autofix")
+            if getattr(args, 'dry_run', False):
+                cmd.append("--dry-run")
             cmd.append("--no-open")  # parent controls browser open
             try:
                 result = subprocess.run(cmd, cwd=repo_path, timeout=600)
@@ -531,6 +534,8 @@ def cmd_scan(args):
                 cmd.append("--no-verify")
             if getattr(args, 'autofix', False):
                 cmd.append("--autofix")
+            if getattr(args, 'dry_run', False):
+                cmd.append("--dry-run")
             cmd.append("--no-open")  # parent controls browser open
             try:
                 result = subprocess.run(cmd, cwd=repo_path, timeout=600)
@@ -670,6 +675,8 @@ def cmd_scan(args):
                 cmd.append("--no-verify")
             if getattr(args, 'autofix', False):
                 cmd.append("--autofix")
+            if getattr(args, 'dry_run', False):
+                cmd.append("--dry-run")
             cmd.append("--no-open")  # parent controls browser open
             try:
                 result = subprocess.run(cmd, cwd=repo_path, timeout=600)
@@ -836,6 +843,8 @@ def cmd_scan(args):
                         cmd.append("--no-verify")
                     if getattr(args, 'autofix', False):
                         cmd.append("--autofix")
+                    if getattr(args, 'dry_run', False):
+                        cmd.append("--dry-run")
                     cmd.append("--no-open")
                     try:
                         result = subprocess.run(cmd, cwd=repo_path, timeout=600)
