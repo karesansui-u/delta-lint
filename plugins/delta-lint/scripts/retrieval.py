@@ -38,6 +38,18 @@ MAX_FILE_CHARS = 15_000     # Per-file cap (smart-truncated, not head-only)
 MAX_DEPS_PER_FILE = 5       # Limit dependency fan-out
 MIN_CONFIDENCE = 0.50       # Dependencies below this are excluded
 
+# Dependency resolution must never satisfy project imports from generated,
+# vendored, or virtualenv paths. `filter_source_files()` already excludes many
+# of these for targets; this shared set also protects recursive rglob searches
+# for bare imports such as Python's stdlib-like `subprocess`.
+EXCLUDED_DIR_PARTS = {
+    ".git", "node_modules", "vendor", "__pycache__",
+    ".venv", "venv", "env", "site-packages",
+    ".tox", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+    "dist", ".next", ".nuxt", ".output", "build", "target",
+    "coverage", "htmlcov", ".cache", ".turbo",
+}
+
 
 # ---------------------------------------------------------------------------
 # Smart truncation — extract structural outline instead of head-only cut
@@ -198,6 +210,11 @@ def _is_git_repo(path: str) -> bool:
         capture_output=True, text=True, cwd=path, timeout=5,
     )
     return result.returncode == 0
+
+
+def _has_excluded_dir(path: str | Path) -> bool:
+    return bool(set(Path(path).parts) & EXCLUDED_DIR_PARTS)
+
 
 
 def _detect_base_branch(repo_path: str) -> str | None:
@@ -1224,6 +1241,8 @@ def _find_project_file(repo: Path, candidates: list[str],
     for candidate in candidates:
         if candidate in seen:
             return None
+        if _has_excluded_dir(candidate):
+            continue
         # LLM may return code snippets as candidates — skip obviously invalid paths
         if len(candidate) > 255 or "\n" in candidate or "\t" in candidate:
             continue
@@ -1241,7 +1260,7 @@ def _find_project_file(repo: Path, candidates: list[str],
             for depth_limit_dir in repo.rglob(candidate):
                 if depth_limit_dir.is_file():
                     rel = str(depth_limit_dir.relative_to(repo))
-                    if rel not in seen:
+                    if rel not in seen and not _has_excluded_dir(rel):
                         return rel, depth_limit_dir
     return None
 
